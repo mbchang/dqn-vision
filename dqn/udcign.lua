@@ -15,30 +15,42 @@ function load_udcign_encoder(cp_path, args)
 
     -- (bsize x 3 x 210 x 160) to (bsize x 200)
     local encoder = model.modules[1].modules[2]
+    -- encoder:cuda()
     local encoder_dim = args.hist_len*200 -- hardcoded
-
-    -- input is (bsize x 3 x 210 x 160)
-    local net = nn.Sequential()
-
-    -- encode each of the histlen images separately
-    net:add(nn.Reshape(args.hist_len,3,210,160))
-
-    -- -- split on first dimension, to get 4 tensors of (3,210,160)
-    -- -- join on first dimension: hist_len*200
-    -- local vision = nn.Parallel(1,1)
-    -- vision:add(encoder)
     --
-    -- -- share weights. Number of copies = args.hist_len
-    -- for i = 2,args.hist_len do
+    -- local input = nn.Identity()()
+    -- local reshaped = nn.Reshape(args.hist_len,3,210,160)(input)
+    -- local splitted = nn.SplitTable(1)(reshaped)
+    --
+    -- local encoder_clones = {encoder}
+    -- for _ = 2,args.hist_len do
     --     local enc_copy =  model.modules[1].modules[2]:clone()
-    --     vision:add(enc_copy:share(encoder,
-    --                             'weight', 'bias', 'gradWeight', 'gradBias'))
-    --     collectgarbage()
-    --     collectgarbage()
+    --     enc_copy:share(encoder,'weight', 'bias', 'gradWeight', 'gradBias')
+    --     table.insert(encoder_clones, enc_copy)
     -- end
     --
-    -- net:add(vision) -- output is table of 200 dim vectors
+    -- local encodings = {}
+    -- for i = 1, args.hist_len do
+    --     table.insert(encodings,
+    --         encoder_clones[i](splitted[i]))
+    -- end
     --
+    -- local joined = nn.JoinTable(1)(encodings)
+    -- local output = nn.Linear(encoder_dim, args.n_actions)(joined)
+    --
+    -- local gmodule = nn.gModule(input, output)
+    --
+    -- if args.gpu >=0 then
+    --     gmodule:cuda()
+    -- end
+    -- return gmodule
+
+    --
+    -- -- input is (bsize x 3 x 210 x 160)
+    local net = nn.Sequential()
+    --
+    -- encode each of the histlen images separately
+    net:add(nn.Reshape(args.hist_len,3,210,160))
 
     net:add(nn.SplitTable(1))
 
@@ -49,8 +61,7 @@ function load_udcign_encoder(cp_path, args)
 
     -- share weights. Number of copies = args.hist_len
     for i = 2,args.hist_len do
-        local enc_copy =  model.modules[1].modules[2]:clone()
-        if args.gpu >=0 then enc_copy:cuda() end
+        local enc_copy =  model.modules[1].modules[2]:clone()  -- I have to clone this though
         enc_copy:share(encoder,'weight', 'bias', 'gradWeight', 'gradBias')
         collectgarbage()
         collectgarbage()
@@ -60,7 +71,6 @@ function load_udcign_encoder(cp_path, args)
     end
 
     net:add(vision) -- output is table of 200 dim vectors
-
     net:add(nn.JoinTable(1))
 
     -- add the last fully connected layer (to actions)
@@ -71,7 +81,7 @@ function load_udcign_encoder(cp_path, args)
     end
     if args.verbose >= 2 then
         print(net)
-        print('Convolutional layers flattened output size:', nel)
+        -- print('Convolutional layers flattened output size:', nel)
     end
     return net
 end
