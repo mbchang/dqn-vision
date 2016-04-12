@@ -204,6 +204,13 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
+    -- print(s2:size())
+
+    local hah = target_q_net:forward(s2)
+    -- print(hah)
+    -- print(hah:size())
+    -- assert(false)
+
     -- Compute max_a Q(s_2, a).
     q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
 
@@ -369,7 +376,14 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     self.lastTerminal = terminal
 
     if self.target_q and self.numSteps % self.target_q == 1 then
-        self.target_network = self.network:clone()
+        cutorch.synchronize()
+        collectgarbage()
+        collectgarbage()
+        self.target_network = self.network:clone()  -- it could be that we are getting memory overflow here
+        cutorch.synchronize()
+        collectgarbage()
+        collectgarbage()
+        print('Target network cloned')
     end
 
     if not terminal then
