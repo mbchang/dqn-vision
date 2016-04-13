@@ -207,6 +207,8 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
+    print(optnet.countUsedMemory(target_q_net))
+
     -- Compute max_a Q(s_2, a).
     q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
 
@@ -309,6 +311,7 @@ end
 
 
 function nql:compute_validation_statistics()
+    print('validation')
     local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
         a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
 
@@ -377,6 +380,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 
     if self.target_q and self.numSteps % self.target_q == 1 then
         self.network:clearState()
+        collectgarbage()
         self.target_network = self.network:clone()
         if self.gpu and self.gpu >= 0 then
             cutorch.synchronize()

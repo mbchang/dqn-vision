@@ -19,6 +19,7 @@ function load_udcign_encoder(cp_path, args)
     -- (bsize x 3 x 210 x 160) to (bsize x 200)
     local encoder = model.modules[1].modules[2]
     encoder:clearState()  -- clear output and gradInput
+    collectgarbage()
     local encoder_dim = args.hist_len*200 -- hardcoded
 
     -- input is (bsize x 3 x 210 x 160)

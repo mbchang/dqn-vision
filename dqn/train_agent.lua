@@ -143,6 +143,9 @@ while step < opt.steps do
         total_reward = total_reward/math.max(1, nepisodes)
 
         if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
+            print('clear for reward')
+            agent.network:clearState()
+            collectgarbage()
             agent.best_network = agent.network:clone()  -- there may be a problem here (but we just want to clone the weights right?)
         end
 
