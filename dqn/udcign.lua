@@ -19,9 +19,6 @@ function load_udcign_encoder(cp_path, args)
     -- (bsize x 3 x 210 x 160) to (bsize x 200)
     local encoder = model.modules[1].modules[2]
     encoder:clearState()  -- clear output and gradInput
-    -- print('encoder'..collectgarbage("count"))
-    -- print(encoder)
-    -- print(optnet.countUsedMemory(encoder))
     local encoder_dim = args.hist_len*200 -- hardcoded
 
     -- input is (bsize x 3 x 210 x 160)
@@ -35,19 +32,14 @@ function load_udcign_encoder(cp_path, args)
     -- join on first dimension: hist_len*200
     local vision = nn.ParallelTable()
     vision:add(encoder)
-    --
-    -- -- share weights. Number of copies = args.hist_len
+
+    -- share weights. Number of copies = args.hist_len
     for i = 2,args.hist_len do
-        -- I have to clone this
         -- (dim_hidden, color_channels, feature_maps, batch_norm)
         local enc_copy = Encoder(200, 3, 72, 0.1)
         enc_copy:cuda()
         enc_copy:share(encoder,'weight', 'bias', 'gradWeight', 'gradBias')
         vision:add(enc_copy)
-        -- print('enc_copy')
-        -- print(optnet.countUsedMemory(enc_copy))
-        -- print('vision')
-        -- print(optnet.countUsedMemory(vision))
     end
 
     net:add(vision) -- output is table of 200 dim vectors
@@ -61,19 +53,8 @@ function load_udcign_encoder(cp_path, args)
     end
     if args.verbose >= 2 then
         print(net)
-        -- print('Convolutional layers flattened output size:', nel)
     end
     cutorch.synchronize()
-    -- print('Set up net >'..collectgarbage("count")*1024)
-    -- collectgarbage()
-    -- print((collectgarbage("count")*1024)..'<')
-    -- collectgarbage()
-    -- print((collectgarbage("count")*1024)..'<')
-    -- collectgarbage()
-    -- print((collectgarbage("count")*1024)..'<')
     collectgarbage()
-    -- print((collectgarbage("count")*1024)..'<')
-    -- print('net')
-    -- print(optnet.countUsedMemory(net))
     return net
 end

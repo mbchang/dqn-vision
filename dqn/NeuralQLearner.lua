@@ -286,13 +286,7 @@ function nql:qLearnMinibatch()
     if self.gpu and self.gpu >= 0 then
         cutorch.synchronize()
     end
-    -- print('qLearnMinibatch >'..collectgarbage("count")*1024)
-    -- collectgarbage()
-    -- collectgarbage()
     collectgarbage()
-    -- print('after qLearnMinibatch')
-    -- print(optnet.countUsedMemory(self.network))
-    -- print((collectgarbage("count")*1024)..'<')
 end
 
 
@@ -382,38 +376,17 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     self.lastTerminal = terminal
 
     if self.target_q and self.numSteps % self.target_q == 1 then
-        -- cutorch.synchronize()
-        -- print('Clone Target >'..collectgarbage("count")*1024)
-        -- collectgarbage()
-        -- print(collectgarbage("count")*1024)
-        -- collectgarbage()
-        -- print((collectgarbage("count")*1024)..'<')
-        -- print('orig')
-        -- print(optnet.countUsedMemory(self.network))
         self.network:clearState()
-        -- print('after nil-ing')
-        -- print(optnet.countUsedMemory(self.network))
-        self.target_network = self.network:clone()  -- it could be that we are getting memory overflow here
-        -- wait, actually how do I only clone the weights and biases?
-        -- clone('weight', 'bias', 'gradWeight', 'gradBias') doesn't
-        -- actually do what I want - it just shares them.
-        -- self.target_network = self.network:clone('weight', 'bias', 'gradWeight', 'gradBias')  -- it could be that we are getting memory overflow here
-        -- print('target')
-        -- print(optnet.countUsedMemory(self.target_network))
-        cutorch.synchronize()
-        -- print('>'..collectgarbage("count")*1024)
+        self.target_network = self.network:clone()
+        if self.gpu and self.gpu >= 0 then
+            cutorch.synchronize()
+        end
         collectgarbage()
-        -- print(collectgarbage("count")*1024)
-        -- collectgarbage()
-        -- print((collectgarbage("count")*1024)..'<  Finished Clone Target')
-        -- print('Target network cloned')
     end
 
     if self.gpu and self.gpu >= 0 then
         cutorch.synchronize()
     end
-    collectgarbage()
-    collectgarbage()
     collectgarbage()
 
     if not terminal then
