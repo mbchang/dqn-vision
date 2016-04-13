@@ -1,6 +1,7 @@
 -- udcign
 
 require "initenv"
+local optnet = require 'optnet'
 
 -- these modules don't actually matter for the encoder, but they just matter
 -- for loading the model in
@@ -17,7 +18,10 @@ function load_udcign_encoder(cp_path, args)
 
     -- (bsize x 3 x 210 x 160) to (bsize x 200)
     local encoder = model.modules[1].modules[2]
-    print(encoder)
+    encoder:clearState()  -- clear output and gradInput
+    -- print('encoder'..collectgarbage("count"))
+    -- print(encoder)
+    -- print(optnet.countUsedMemory(encoder))
     local encoder_dim = args.hist_len*200 -- hardcoded
 
     -- input is (bsize x 3 x 210 x 160)
@@ -25,10 +29,6 @@ function load_udcign_encoder(cp_path, args)
 
     -- encode each of the histlen images separately
     net:add(nn.Reshape(args.hist_len,3,210,160))
-
-    -- net:add(nn.Transpose({1,2}))
-    -- should I transpose here?
-
     net:add(nn.SplitTable(2))
 
     -- split on first dimension, to get 4 tensors of (bsize, 3,210,160)
@@ -42,17 +42,16 @@ function load_udcign_encoder(cp_path, args)
         -- (dim_hidden, color_channels, feature_maps, batch_norm)
         local enc_copy = Encoder(200, 3, 72, 0.1)
         enc_copy:cuda()
-        print(enc_copy)
-        -- local enc_copy =  model.modules[1].modules[2]:clone()  -- is there a way to just get the architecture?
         enc_copy:share(encoder,'weight', 'bias', 'gradWeight', 'gradBias')
         vision:add(enc_copy)
-        -- vision:add(encoder:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+        -- print('enc_copy')
+        -- print(optnet.countUsedMemory(enc_copy))
+        -- print('vision')
+        -- print(optnet.countUsedMemory(vision))
     end
 
     net:add(vision) -- output is table of 200 dim vectors
     net:add(nn.JoinTable(2))
-
-    -- apparently this outputs a table (16, 200); has something to do with batch mode
 
     -- add the last fully connected layer (to actions)
     net:add(nn.Linear(encoder_dim, args.n_actions))
@@ -65,6 +64,16 @@ function load_udcign_encoder(cp_path, args)
         -- print('Convolutional layers flattened output size:', nel)
     end
     cutorch.synchronize()
+    -- print('Set up net >'..collectgarbage("count")*1024)
+    -- collectgarbage()
+    -- print((collectgarbage("count")*1024)..'<')
+    -- collectgarbage()
+    -- print((collectgarbage("count")*1024)..'<')
+    -- collectgarbage()
+    -- print((collectgarbage("count")*1024)..'<')
     collectgarbage()
+    -- print((collectgarbage("count")*1024)..'<')
+    -- print('net')
+    -- print(optnet.countUsedMemory(net))
     return net
 end

@@ -4,6 +4,8 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 
+local optnet = require 'optnet'
+
 if not dqn then
     require 'initenv'
 end
@@ -205,13 +207,6 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
-    -- print(s2:size())
-
-    local hah = target_q_net:forward(s2)
-    -- print(hah)
-    -- print(hah:size())
-    -- assert(false)
-
     -- Compute max_a Q(s_2, a).
     q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
 
@@ -288,6 +283,16 @@ function nql:qLearnMinibatch()
     -- accumulate update
     self.deltas:mul(0):addcdiv(self.lr, self.dw, self.tmp)
     self.w:add(self.deltas)
+    if self.gpu and self.gpu >= 0 then
+        cutorch.synchronize()
+    end
+    -- print('qLearnMinibatch >'..collectgarbage("count")*1024)
+    -- collectgarbage()
+    -- collectgarbage()
+    collectgarbage()
+    -- print('after qLearnMinibatch')
+    -- print(optnet.countUsedMemory(self.network))
+    -- print((collectgarbage("count")*1024)..'<')
 end
 
 
@@ -364,7 +369,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if self.numSteps > self.learn_start and not testing and
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
-            self:qLearnMinibatch()
+            self:qLearnMinibatch() -- do this once each time we perceive
         end
     end
 
@@ -377,15 +382,39 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     self.lastTerminal = terminal
 
     if self.target_q and self.numSteps % self.target_q == 1 then
-        cutorch.synchronize()
-        collectgarbage()
-        collectgarbage()
+        -- cutorch.synchronize()
+        -- print('Clone Target >'..collectgarbage("count")*1024)
+        -- collectgarbage()
+        -- print(collectgarbage("count")*1024)
+        -- collectgarbage()
+        -- print((collectgarbage("count")*1024)..'<')
+        -- print('orig')
+        -- print(optnet.countUsedMemory(self.network))
+        self.network:clearState()
+        -- print('after nil-ing')
+        -- print(optnet.countUsedMemory(self.network))
         self.target_network = self.network:clone()  -- it could be that we are getting memory overflow here
+        -- wait, actually how do I only clone the weights and biases?
+        -- clone('weight', 'bias', 'gradWeight', 'gradBias') doesn't
+        -- actually do what I want - it just shares them.
+        -- self.target_network = self.network:clone('weight', 'bias', 'gradWeight', 'gradBias')  -- it could be that we are getting memory overflow here
+        -- print('target')
+        -- print(optnet.countUsedMemory(self.target_network))
         cutorch.synchronize()
+        -- print('>'..collectgarbage("count")*1024)
         collectgarbage()
-        collectgarbage()
-        print('Target network cloned')
+        -- print(collectgarbage("count")*1024)
+        -- collectgarbage()
+        -- print((collectgarbage("count")*1024)..'<  Finished Clone Target')
+        -- print('Target network cloned')
     end
+
+    if self.gpu and self.gpu >= 0 then
+        cutorch.synchronize()
+    end
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
 
     if not terminal then
         return actionIndex
