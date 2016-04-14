@@ -269,6 +269,8 @@ function nql:qLearnMinibatch()
     -- get new gradient
     self.network:backward(s, targets)
 
+    -- Do I need to do anything with self.w, self.wc for not backpropagating grads?
+
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
 

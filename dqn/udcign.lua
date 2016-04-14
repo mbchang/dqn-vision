@@ -17,17 +17,24 @@ function load_udcign_encoder(cp_path, args)
     local model = checkpoint.model
 
     -- (bsize x 3 x 210 x 160) to (bsize x 200)
-    local encoder = model.modules[1].modules[2]
+    local encoder
+    if args.vanilla then
+        encoder = model.modules[1]
+    else
+        encoder = model.modules[1].modules[2]
+    end
+
     encoder:clearState()  -- clear output and gradInput
     collectgarbage()
     local encoder_dim = args.hist_len*200 -- hardcoded
 
     -- input is (bsize x 3 x 210 x 160)
     local net = nn.Sequential()
+    local pre_encoder = nn.Sequential()
 
     -- encode each of the histlen images separately
-    net:add(nn.Reshape(args.hist_len,3,210,160))
-    net:add(nn.SplitTable(2))
+    pre_encoder:add(nn.Reshape(args.hist_len,3,210,160))
+    pre_encoder:add(nn.SplitTable(2))
 
     -- split on first dimension, to get 4 tensors of (bsize, 3,210,160)
     -- join on first dimension: hist_len*200
@@ -44,8 +51,10 @@ function load_udcign_encoder(cp_path, args)
         collectgarbage()
     end
 
-    net:add(vision) -- output is table of 200 dim vectors
-    net:add(nn.JoinTable(2))
+    pre_encoder:add(vision) -- output is table of 200 dim vectors
+    pre_encoder:add(nn.JoinTable(2))
+
+    net:add(pre_encoder)
 
     -- add the last fully connected layer (to actions)
     net:add(nn.Linear(encoder_dim, args.n_actions))
