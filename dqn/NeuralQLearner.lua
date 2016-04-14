@@ -209,6 +209,7 @@ function nql:getQUpdate(args)
 
     target_q_net:clearState()
     collectgarbage()
+    collectgarbage()
 
     -- Compute max_a Q(s_2, a).
     q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
@@ -222,6 +223,10 @@ function nql:getQUpdate(args)
         delta:div(self.r_max)
     end
     delta:add(q2)
+
+    self.network:clearState()
+    collectgarbage()
+    collectgarbage()
 
     -- q = Q(s,a)
     local q_all = self.network:forward(s):float()
@@ -311,16 +316,38 @@ function nql:sample_validation_data()
 end
 
 
-function nql:compute_validation_statistics()
-    -- print(self.valid_s:size())
-    -- print(self.valid_a:size())
-    -- print(self.valid_r:size())
-    -- print(self.valid_s2:size())
-    local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+function nql:compute_validation_statistics(split)
+    if not split then
+        local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
+            a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+        self.v_avg = self.q_max * q2_max:mean()
+        self.tderr_avg = delta:clone():abs():mean() -- note that :abs() mutates!
+    else
+        print('split')
+        -- do a for loop to do this iteratively
+        assert(self.valid_size % 10 == 0)
+        local sub_valid_size = self.valid_size/10
+        local q2_max_sum = 0 -- change this to a torch tensor of 0s  the same size as delta
+        local delta_sum = 0  -- change this to a torch tensor of 0s  the same size as delta
 
-    self.v_avg = self.q_max * q2_max:mean()
-    self.tderr_avg = delta:clone():abs():mean()
+        -- delta = (valid_size x 1)
+        -- q2_max_sum = (valid_size)
+        --
+        for i = 1,self.valid_size,sub_valid_size do
+            local _ , delta, q2_max = self:getQUpdate{
+                        s=self.valid_s[{{i,i+sub_valid_size-1}}],
+                        a=self.valid_a[{{i,i+sub_valid_size-1}}],
+                        r=self.valid_r[{{i,i+sub_valid_size-1}}],
+                        s2=self.valid_s2[{{i,i+sub_valid_size-1}}],
+                        term=self.valid_term[{{i,i+sub_valid_size-1}}]}
+            q2_max_sum = q2_max_sum + q2_max:sum()
+            delta_sum = delta_sum + delta:clone():abs():sum()
+            collectgarbage()
+        end
+
+        self.v_avg = self.q_max * q2_max_sum/self.valid_size
+        self.tderr_avg = delta_sum/self.valid_size
+    end
 end
 
 

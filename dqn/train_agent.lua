@@ -78,6 +78,12 @@ local episode_reward
 -- screen is (1 x 3 x 210 x 160)
 local screen, reward, terminal = game_env:getState()
 
+local split = false
+if not(opt.name:match('udcign') == nil) then
+    split = true
+end
+
+
 print("Iteration ..", step)
 while step < opt.steps do
     step = step + 1
@@ -138,7 +144,7 @@ while step < opt.steps do
 
         eval_time = sys.clock() - eval_time
         start_time = start_time + eval_time
-        agent:compute_validation_statistics()
+        agent:compute_validation_statistics(split)
         local ind = #reward_history+1
         total_reward = total_reward/math.max(1, nepisodes)
 
@@ -149,8 +155,8 @@ while step < opt.steps do
         end
 
         if agent.v_avg then
-            v_history[ind] = agent.v_avg
-            td_history[ind] = agent.tderr_avg
+            v_history[ind] = agent.v_avg  -- affected by validation_statistics
+            td_history[ind] = agent.tderr_avg  -- affected by validation_statistics
             qmax_history[ind] = agent.q_max
         end
         print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
@@ -189,9 +195,13 @@ while step < opt.steps do
             filename = filename .. "_" .. math.floor(step / opt.save_versions)
         end
         filename = filename
+
+        agent.network:clearState()
+        agent.best_network:clearState()
+        collectgarbage()
         torch.save(filename .. ".t7", {agent = agent,
-                                model = agent.network,
-                                best_model = agent.best_network,
+                                model = agent.network:clearState(),
+                                best_model = agent.best_network:clearState(),
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
                                 episode_counts = episode_counts,
