@@ -267,9 +267,19 @@ function nql:qLearnMinibatch()
     self.dw:zero()
 
     -- get new gradient
-    self.network:backward(s, targets)
 
-    -- Do I need to do anything with self.w, self.wc for not backpropagating grads?
+    -- Do I need to do anything with self.w, self.wc for not backpropagating grads?]
+    -- what you can do is to make gradInput = 0
+    -- or maybe you can just do self.network[2]:backward(s,targets)
+    -- and if this is the case, then the pre_encoder should be 0
+    -- actually, we mutate self.dw, so we should actualy make gradOutput = 0
+    -- this is fine, because we zero out self.dw initially
+    if fix_pre_encoder then
+        self.network.modules[2]:backward(self.network.modules[1].output,
+                                        targets)
+    else
+        self.network:backward(s, targets)
+    end
 
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
