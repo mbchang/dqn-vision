@@ -26,6 +26,7 @@ cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
 
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
+-- cmd:option('-fix_pre_encoder', false, 'freeze weights on pre encoder')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
@@ -50,6 +51,7 @@ local opt = cmd:parse(arg)
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
+-- agent.fix_pre_encoder = opt.fix_pre_encoder
 
 -- override print to always flush the output
 local old_print = print
@@ -197,11 +199,14 @@ while step < opt.steps do
         filename = filename
 
         agent.network:clearState()
-        agent.best_network:clearState()
+        -- print(agent.best_network)
+        if agent.best_network then
+            agent.best_network:clearState()
+        end
         collectgarbage()
         torch.save(filename .. ".t7", {agent = agent,
-                                model = agent.network:clearState(),
-                                best_model = agent.best_network:clearState(),
+                                model = agent.network,
+                                best_model = agent.best_network,
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
                                 episode_counts = episode_counts,

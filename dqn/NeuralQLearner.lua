@@ -12,6 +12,9 @@ end
 
 local nql = torch.class('dqn.NeuralQLearner')
 
+-- false for backpropagating all the way
+-- true for backpropagating only through the linear
+local fix_pre_encoder = true
 
 function nql:__init(args)
     self.state_dim  = args.state_dim -- State dimensionality.
@@ -66,6 +69,7 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork() -- args.network is loaded by run_gpu as the convnet_atari3
+    -- self.fix_pre_encoder = false
 
     -- check whether there is a network file
     local network_function
