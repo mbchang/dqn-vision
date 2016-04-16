@@ -1,0 +1,5 @@
+*.sh
+roms/
+*.md
+*.txt
+*.out

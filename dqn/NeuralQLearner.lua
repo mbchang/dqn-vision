@@ -12,6 +12,9 @@ end
 
 local nql = torch.class('dqn.NeuralQLearner')
 
+-- false for backpropagating all the way
+-- true for backpropagating only through the linear
+local fix_pre_encoder = true
 
 function nql:__init(args)
     self.state_dim  = args.state_dim -- State dimensionality.
@@ -55,8 +58,8 @@ function nql:__init(args)
     self.gpu            = args.gpu
 
     self.ncols          = args.ncols or 1  -- number of color channels in input
-    -- self.input_dims     = args.input_dims or {self.hist_len*self.ncols, 84, 84}  -- this incorporates hist_len!
-    self.input_dims     = args.input_dims or {self.hist_len,3, 210, 160}  -- this incorporates hist_len!
+    self.input_dims     = args.input_dims or {self.hist_len*self.ncols, 84, 84}  -- this incorporates hist_len!
+    -- self.input_dims     = args.input_dims or {self.hist_len,3, 210, 160}  -- this incorporates hist_len!  -- TODO
     self.preproc        = args.preproc  -- name of preprocessing network
     self.histType       = args.histType or "linear"  -- history type to use
     self.histSpacing    = args.histSpacing or 1
@@ -66,6 +69,7 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork() -- args.network is loaded by run_gpu as the convnet_atari3
+    -- self.fix_pre_encoder = false
 
     -- check whether there is a network file
     local network_function
@@ -207,7 +211,9 @@ function nql:getQUpdate(args)
         target_q_net = self.network
     end
 
-    print(optnet.countUsedMemory(target_q_net))
+    target_q_net:clearState()
+    collectgarbage()
+    collectgarbage()
 
     -- Compute max_a Q(s_2, a).
     q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
@@ -221,6 +227,10 @@ function nql:getQUpdate(args)
         delta:div(self.r_max)
     end
     delta:add(q2)
+
+    self.network:clearState()
+    collectgarbage()
+    collectgarbage()
 
     -- q = Q(s,a)
     local q_all = self.network:forward(s):float()
@@ -261,7 +271,19 @@ function nql:qLearnMinibatch()
     self.dw:zero()
 
     -- get new gradient
-    self.network:backward(s, targets)
+
+    -- Do I need to do anything with self.w, self.wc for not backpropagating grads?]
+    -- what you can do is to make gradInput = 0
+    -- or maybe you can just do self.network[2]:backward(s,targets)
+    -- and if this is the case, then the pre_encoder should be 0
+    -- actually, we mutate self.dw, so we should actualy make gradOutput = 0
+    -- this is fine, because we zero out self.dw initially
+    if fix_pre_encoder then
+        self.network.modules[2]:backward(self.network.modules[1].output,
+                                        targets)
+    else
+        self.network:backward(s, targets)
+    end
 
     -- add weight cost to gradient
     self.dw:add(-self.wc, self.w)
@@ -310,13 +332,38 @@ function nql:sample_validation_data()
 end
 
 
-function nql:compute_validation_statistics()
-    print('validation')
-    local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-        a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+function nql:compute_validation_statistics(split)
+    if not split then
+        local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
+            a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
+        self.v_avg = self.q_max * q2_max:mean()
+        self.tderr_avg = delta:clone():abs():mean() -- note that :abs() mutates!
+    else
+        print('split')
+        -- do a for loop to do this iteratively
+        assert(self.valid_size % 10 == 0)
+        local sub_valid_size = self.valid_size/10
+        local q2_max_sum = 0 -- change this to a torch tensor of 0s  the same size as delta
+        local delta_sum = 0  -- change this to a torch tensor of 0s  the same size as delta
 
-    self.v_avg = self.q_max * q2_max:mean()
-    self.tderr_avg = delta:clone():abs():mean()
+        -- delta = (valid_size x 1)
+        -- q2_max_sum = (valid_size)
+        --
+        for i = 1,self.valid_size,sub_valid_size do
+            local _ , delta, q2_max = self:getQUpdate{
+                        s=self.valid_s[{{i,i+sub_valid_size-1}}],
+                        a=self.valid_a[{{i,i+sub_valid_size-1}}],
+                        r=self.valid_r[{{i,i+sub_valid_size-1}}],
+                        s2=self.valid_s2[{{i,i+sub_valid_size-1}}],
+                        term=self.valid_term[{{i,i+sub_valid_size-1}}]}
+            q2_max_sum = q2_max_sum + q2_max:sum()
+            delta_sum = delta_sum + delta:clone():abs():sum()
+            collectgarbage()
+        end
+
+        self.v_avg = self.q_max * q2_max_sum/self.valid_size
+        self.tderr_avg = delta_sum/self.valid_size
+    end
 end
 
 
@@ -380,12 +427,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
 
     if self.target_q and self.numSteps % self.target_q == 1 then
         self.network:clearState()
-        collectgarbage()
         self.target_network = self.network:clone()
-        if self.gpu and self.gpu >= 0 then
-            cutorch.synchronize()
-        end
-        collectgarbage()
     end
 
     if self.gpu and self.gpu >= 0 then

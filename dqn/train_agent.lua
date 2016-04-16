@@ -26,6 +26,7 @@ cmd:option('-random_starts', 0, 'play action 0 between 1 and random_starts ' ..
 
 cmd:option('-name', '', 'filename used for saving network and training history')
 cmd:option('-network', '', 'reload pretrained network')
+-- cmd:option('-fix_pre_encoder', false, 'freeze weights on pre encoder')
 cmd:option('-agent', '', 'name of agent file to use')
 cmd:option('-agent_params', '', 'string of agent parameters')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
@@ -50,6 +51,7 @@ local opt = cmd:parse(arg)
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
+-- agent.fix_pre_encoder = opt.fix_pre_encoder
 
 -- override print to always flush the output
 local old_print = print
@@ -77,6 +79,12 @@ local episode_reward
 
 -- screen is (1 x 3 x 210 x 160)
 local screen, reward, terminal = game_env:getState()
+
+local split = false
+if not(opt.name:match('udcign') == nil) then
+    split = true
+end
+
 
 print("Iteration ..", step)
 while step < opt.steps do
@@ -138,20 +146,19 @@ while step < opt.steps do
 
         eval_time = sys.clock() - eval_time
         start_time = start_time + eval_time
-        agent:compute_validation_statistics()
+        agent:compute_validation_statistics(split)
         local ind = #reward_history+1
         total_reward = total_reward/math.max(1, nepisodes)
 
         if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            print('clear for reward')
             agent.network:clearState()
             collectgarbage()
             agent.best_network = agent.network:clone()  -- there may be a problem here (but we just want to clone the weights right?)
         end
 
         if agent.v_avg then
-            v_history[ind] = agent.v_avg
-            td_history[ind] = agent.tderr_avg
+            v_history[ind] = agent.v_avg  -- affected by validation_statistics
+            td_history[ind] = agent.tderr_avg  -- affected by validation_statistics
             qmax_history[ind] = agent.q_max
         end
         print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
@@ -190,6 +197,13 @@ while step < opt.steps do
             filename = filename .. "_" .. math.floor(step / opt.save_versions)
         end
         filename = filename
+
+        agent.network:clearState()
+        -- print(agent.best_network)
+        if agent.best_network then
+            agent.best_network:clearState()
+        end
+        collectgarbage()
         torch.save(filename .. ".t7", {agent = agent,
                                 model = agent.network,
                                 best_model = agent.best_network,
