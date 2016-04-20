@@ -15,7 +15,7 @@ end
 
 function ScheduledWeightSharpener:getP()
     local iteration = self.iteration_container[1]
-    local iteration = schedule_weight_iter
+    -- local iteration = schedule_weight_iter
     -- print(self.iteration_container[1], self.slope)
     -- print(self.slope)
     return math.min(1 + (iteration / 10000) * self.slope, 100)  -- once it reaches 10000, it stops
