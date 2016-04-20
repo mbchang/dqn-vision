@@ -6,6 +6,8 @@ See LICENSE file for full terms of limited license.
 
 local optnet = require 'optnet'
 require 'rmsprop'
+require 'MotionBCECriterion'
+require 'predictive_udcign_atari3'
 
 if not dqn then
     require 'initenv'
@@ -69,6 +71,7 @@ function nql:__init(args)
 
     self.transition_params = args.transition_params or {}
 
+    -- this is just the filename
     self.network    = args.network or self:createNetwork() -- args.network is loaded by run_gpu as the convnet_atari3
     -- self.fix_pre_encoder = false
 
@@ -79,6 +82,7 @@ function nql:__init(args)
               " is not a string!")
     end
 
+    -- try to load the filename
     local msg, err = pcall(require, self.network)
     if not msg then
         -- try to load saved agent
@@ -98,15 +102,18 @@ function nql:__init(args)
     end
 
     -- here, iniitialize predictive network
-    self.pred_net = args.pred_net
+    args.scheduler_iteration = torch.zeros(1)
+    self.pred_net = load_pred_net(args) -- this may be faster
     self.pred_criterion = nn.MotionBCECriterion(args.motion_scale)
 
     if self.gpu and self.gpu >= 0 then
         self.network:cuda()
         self.pred_net:cuda()
+        self.pred_criterion:cuda()
     else
         self.network:float()
         self.pred_net:float()
+        self.pred_criterion:float()
     end
 
     -- Load preprocessing network.
@@ -124,10 +131,12 @@ function nql:__init(args)
     if self.gpu and self.gpu >= 0 then
         self.network:cuda()
         self.pred_net:cuda()
+        self.pred_criterion:cuda()
         self.tensor_type = torch.CudaTensor
     else
         self.network:float()
         self.pred_net:float()
+        self.pred_criterion:float()
         self.tensor_type = torch.FloatTensor
     end
 
@@ -167,8 +176,9 @@ function nql:__init(args)
     -- self.g  = self.dw:clone():fill(0)
     -- self.g2 = self.dw:clone():fill(0)
 
+    -- for debugging purposes only
     self.dec = self.network.modules[2]
-    self.p_dec = self.prd_net.modules[2]
+    self.p_dec = self.pred_net.modules[2]
 
     -- encoder
     self.enc_w, self.enc_dw = self.network.modules[1]:getParameters()
@@ -206,9 +216,19 @@ function nql:__init(args)
     -- parameters for self.pred_net
 
     -- here do other initialization for the target q network.
-    self.pred_net.modules[1]:share(self.network.modules[1],'weight', 'bias'))
+    -- self.pred_net.modules[1] is the encoder, which is a ParallelTable
+    -- clone the grad params in the ParallelTable just in case?
+    self.pred_net.modules[1].modules[1]:share(
+                                    self.network.modules[1],'weight', 'bias'))
+    self.pred_net.modules[1].modules[2]:share(
+                                    self.network.modules[1],'weight', 'bias'))
+    self.pred_net.modules[1].modules[2]:share(
+                self.pred_net.modules[1].modules[1],'gradWeight', 'gradBias'))
+
     self.p_dec_w, self.p_dec_dw = self.pred_net.modules[2].getParameters()
     ----------------------------------------------------------------------------
+
+    self.optim_state = {learningRate=args.learning_rate, alpha=args.decay_rate}
 end
 
 
@@ -229,7 +249,12 @@ function nql:reset(state)
 
     ----------------------------------------------------------------------------
     -- parameters for self.pred_net
-    self.pred_net.modules[1]:share(self.network.modules[1],'weight', 'bias'))
+    self.pred_net.modules[1].modules[1]:share(
+                                    self.network.modules[1],'weight', 'bias'))
+    self.pred_net.modules[1].modules[2]:share(
+                                    self.network.modules[1],'weight', 'bias'))
+    self.pred_net.modules[1].modules[2]:share(
+                self.pred_net.modules[1].modules[1],'gradWeight', 'gradBias'))
     self.p_dec_w, self.p_dec_dw = self.pred_net.modules[2].getParameters()
 
     ----------------------------------------------------------------------------
@@ -333,29 +358,28 @@ function nql:qLearnMinibatch()
     self.dec_dw:zero()
 
     -- get new gradient
+    ---------------------------------------------------------------------------
 
-
-
-    --
-    -- here do forward on the ICLR, as well as backward using a closure (rmsprop)
-    -- you can just modify rmsprop to take in inptu as argument
-    -- define feval outside: feval takes in _params, as well as input
-    -- in feval we should scale gradients
-    -- do a call to rmsprop, which does a forward and backward pass
-    -- print gradOutput of the linears for the dqn encoder as well as iclr encoder
-    -- to compare grad_norms.
-
-    -- optim_state
     -- this does a forward and backward on the pred_net.
     -- this will automatically update the self.enc_w and self.p_dec_w.
     -- note that the grad params for the self.pred_net are completely different
     -- from that of self.network
     -- after this, we will update self.enc_w again, as well as self.dec_w
-    local new_params, _ = rmsprop(feval, s, torch.cat{self.enc_w,self.p_dec_w},
-                                                                    optim_state)
-    self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
-    self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
 
+    -- first split into batches
+    local s_reshaped = s:reshape(self.minibatch_size, self.hist_len, 84, 84)
+    local s_pairs = {}
+    table.insert(s_pairs, {s_reshaped[{{},{1,2}}]})
+    table.insert(s_pairs, {s_reshaped[{{},{2,3}}]})
+    table.insert(s_pairs, {s_reshaped[{{},{3,4}}]})
+
+    for k,s_pair in pairs(s_pairs) do
+        local new_params, _ = rmsprop(feval, s_pair,
+                        torch.cat{self.enc_w,self.p_dec_w}, self.optim_state)
+        self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
+        self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
+    end
+    ---------------------------------------------------------------------------
 
     if fix_pre_encoder then
         self.network.modules[2]:backward(self.network.modules[1].output,
@@ -416,7 +440,7 @@ end
 -- do fwd/bwd and return loss, grad_params
 -- TODO: should input already be reshaped, or no?
 -- expect the input to be
-function feval(x, input, lambda)
+function feval(x, input)
     assert(x:size(1) == self.enc_w:size(1) + self.p_dec_w:size(1))
     if x[{{1,self.enc_w:size(1)}}] ~= self.enc_w then
         error("Params not equal to given feval argument.")
@@ -426,12 +450,10 @@ function feval(x, input, lambda)
         error("Params not equal to given feval argument.")
         self.p_dec_w:copy(x[{{self.enc_w:size(1)+1,-1}}])
     end
-    -- how do I extract the params of the pred_net only?
-    -- TODO: I'm going to have to do something with the sizes of the params
 
-    -- grad_params:zero()
-    -- TODO: maybe I don't need to do grad_params, since I bascially do
-    -- two backwards because gradients accumulate
+    -- grad_params:zero()  -- somehow I have to zero the parameters
+    self.enc_dw:zero()
+    self.p_dec_dw:zero()
 
     ------------------ get minibatch -------------------
     -- local input = data_loaders.load_random_atari_batch('train')
@@ -465,7 +487,10 @@ function feval(x, input, lambda)
     self.p_dec_dw:clamp(-opt.grad_clip, opt.grad_clip)
 
     collectgarbage()
-    return loss, grad_params
+    -- torch.cat{self.enc_dw,self.p_dec_dw} is supposed to be the grad_params
+    -- however it gets assigned to a local variable in rmsprop, so we don't
+    -- have to worry about dereferencing here
+    return loss, torch.cat{self.enc_dw,self.p_dec_dw}
 end
 
 
