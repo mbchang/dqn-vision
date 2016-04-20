@@ -101,10 +101,37 @@ function nql:__init(args)
         self.network = self:network()
     end
 
+    ----------------------------------------------------------------------------
+    -- training parameters for self.pred_net
+    self.p_motion_scale = 3
+    self.p_grad_clip = 3
+    self.p_L2 = 0
+    self.p_learning_rate = 0.0001
+    self.p_learning_rate_decay = -.97
+    self.p_learning_rate_decay_interval = 4000
+    self.p_learning_rate_decay_after = 18000
+    self.p_decay_rate = 0.95  -- rmsprop alpha
+    self.optim_state = {learningRate=self.p_learning_rate,
+                        alpha=self.p_decay_rate}
+    self.p_lambda = 0.5
+
+
+    self.predictive_iteration = 0
+    self.p_args = {}
+    self.sharpening_rate = 10
+    self.p_args.scheduler_iteration = torch.zeros(1)
+    self.p_args.dim_hidden = 200
+    self.p_args.color_channels = self.ncols
+    self.p_args.feature_maps = 72
+    self.noise = 0.1
+    self.num_heads = 3
+
+
     -- here, iniitialize predictive network
-    args.scheduler_iteration = torch.zeros(1)
-    self.pred_net = load_pred_net(args) -- this may be faster
-    self.pred_criterion = nn.MotionBCECriterion(args.motion_scale)
+    self.pred_net = load_pred_net(self.p_args) -- this may be faster
+    self.pred_criterion = nn.MotionBCECriterion(self.p_motion_scale)
+
+    ----------------------------------------------------------------------------
 
     if self.gpu and self.gpu >= 0 then
         self.network:cuda()
@@ -177,7 +204,9 @@ function nql:__init(args)
     -- self.g2 = self.dw:clone():fill(0)
 
     -- for debugging purposes only
+    self.enc = self.network.modules[1]
     self.dec = self.network.modules[2]
+    self.p_enc = self.pred_net.modules[1]
     self.p_dec = self.pred_net.modules[2]
 
     -- encoder
@@ -226,9 +255,6 @@ function nql:__init(args)
                 self.pred_net.modules[1].modules[1],'gradWeight', 'gradBias'))
 
     self.p_dec_w, self.p_dec_dw = self.pred_net.modules[2].getParameters()
-    ----------------------------------------------------------------------------
-
-    self.optim_state = {learningRate=args.learning_rate, alpha=args.decay_rate}
 end
 
 
@@ -366,6 +392,10 @@ function nql:qLearnMinibatch()
     -- from that of self.network
     -- after this, we will update self.enc_w again, as well as self.dec_w
 
+    -- mutate the scheduler_iteration
+    self.predictive_iteration = self.predictive_iteration+1
+    self.p_args.scheduler_iteration[1] = self.p_args.scheduler_iteration[1]+1
+
     -- first split into batches
     local s_reshaped = s:reshape(self.minibatch_size, self.hist_len, 84, 84)
     local s_pairs = {}
@@ -379,6 +409,19 @@ function nql:qLearnMinibatch()
         self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
         self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
     end
+
+    -- here we do updates on learning_rate if needed
+    if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
+                                        and self.p_learning_rate_decay < 1 then
+        if self.predictive_iteration >= self.p_learning_rate_decay_after then
+            local decay_factor = self.p_learning_rate_decay
+            self.optim_state.learningRate = self.optim_state.learningRate
+                                                                * decay_factor
+            print('decayed function learning rate by a factor ' ..
+                        decay_factor .. ' to ' .. self.optim_state.learningRate)
+        end
+    end
+
     ---------------------------------------------------------------------------
 
     if fix_pre_encoder then
@@ -428,7 +471,7 @@ function nql:qLearnMinibatch()
     -- here, print out the gradInput of the decs
     print('Find Lambda')
     print(self.dec.gradInput:norm())
-    print(self.p_dec.gradInput:norm())
+    print(self.p_dec.gradInput:norm())  -- this should = gradZ
 
     if self.gpu and self.gpu >= 0 then
         cutorch.synchronize()
@@ -467,13 +510,18 @@ function feval(x, input)
     loss = self.pred_criterion:forward(output, input[2])
     local grad_output = self.pred_criterion:backward(output, input[2]):clone()
 
-    self.pred_net:backward(input, grad_output)
+    -- self.pred_net:backward(input, grad_output)
+
+    local gradZ = self.pred_net.modules[2]:backward(
+                                self.pred_net.modules[1].output, grad_output)  -- TODO: you need to give this a name in order to get an output!
+    gradZ:mul(self.p_lambda)  -- scale gradient at Z
+    self.pred_net.modules[1]:backward(input,gradZ)
 
 
     ------------------ regularize -------------------
-    if opt.L2 > 0 then
+    if self.p_L2 > 0 then
         -- Loss:
-        loss = loss + opt.coefL2 *
+        loss = loss + self.p_L2 *
                             torch.cat{self.enc_w, self.p_dec_w}:norm(2)^2/2
         -- Gradients:
         -- grad_params:add( params:clone():mul(opt.L2) )
@@ -483,8 +531,8 @@ function feval(x, input)
     end
 
     -- TODO: not sure if this clamp works
-    self.enc_dw::clamp(-opt.grad_clip, opt.grad_clip)
-    self.p_dec_dw:clamp(-opt.grad_clip, opt.grad_clip)
+    self.enc_dw::clamp(-self.p_grad_clip, self.p_grad_clip)
+    self.p_dec_dw:clamp(-self.p_grad_clip, self.p_grad_clip)
 
     collectgarbage()
     -- torch.cat{self.enc_dw,self.p_dec_dw} is supposed to be the grad_params
