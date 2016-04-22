@@ -1,16 +1,13 @@
 local E2 = require 'DownsampledEncoder2'
 local D2 = require 'DownsampledDecoder2'
 
-function load_pred_net(iteration_container)
-    local dim_hidden = 200
-    local color_channels = 1
-    local feature_maps = 72
-    local noise = 0.1
-    local sharpening_rate = 10
-    local num_heads = 3
-
-    local enc2 = E2(dim_hidden, color_channels, feature_maps)
-    local dec2 = D2(dim_hidden, color_channels, feature_maps, noise, sharpening_rate, iteration_container, num_heads)
+function load_pred_net(p_args)
+    local enc2 = E2(p_args.dim_hidden, p_args.color_channels,
+                        p_args.feature_maps)
+    local dec2 = D2(p_args.dim_hidden, p_args.color_channels,
+                        p_args.feature_maps, p_args.noise,
+                        p_args.sharpening_rate, p_args.scheduler_iteration,
+                        p_args.num_heads)
 
     local net = nn.Sequential()
     net:add(enc2)

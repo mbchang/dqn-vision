@@ -107,7 +107,7 @@ function nql:__init(args)
     self.p_grad_clip = 3
     self.p_L2 = 0
     self.p_learning_rate = 0.0001
-    self.p_learning_rate_decay = -.97
+    self.p_learning_rate_decay = 0.97
     self.p_learning_rate_decay_interval = 4000
     self.p_learning_rate_decay_after = 18000
     self.p_decay_rate = 0.95  -- rmsprop alpha
@@ -117,6 +117,7 @@ function nql:__init(args)
 
 
     self.predictive_iteration = 0
+
     self.p_args = {}
     self.sharpening_rate = 10
     self.p_args.scheduler_iteration = torch.zeros(1)
@@ -192,45 +193,53 @@ function nql:__init(args)
     self.r_max = 1
 
     ----------------------------------------------------------------------------
-    -- parameters for self.network
-
-    -- self.w, self.dw = self.network:getParameters()
-    -- self.dw:zero()
-    --
-    -- self.deltas = self.dw:clone():fill(0)
-    --
-    -- self.tmp= self.dw:clone():fill(0)
-    -- self.g  = self.dw:clone():fill(0)
-    -- self.g2 = self.dw:clone():fill(0)
-
-    -- for debugging purposes only
+    -- get modules
     self.enc = self.network.modules[1]
     self.dec = self.network.modules[2]
     self.p_enc = self.pred_net.modules[1]
     self.p_dec = self.pred_net.modules[2]
 
-    -- encoder
-    self.enc_w, self.enc_dw = self.network.modules[1]:getParameters()
-    self.enc_dw:zero()
+    -- weight sharing
+    self.p_enc.modules[1]:share(self.enc,'weight', 'bias'))
+    self.p_enc.modules[2]:share(self.enc,'weight', 'bias'))
+    self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
 
-    self.enc_deltas = self.enc_dw:clone():fill(0)
+    -- get params
+    self.enc_w, self.enc_dw = self.enc:getParameters()  -- qnet
+    self.dec_w, self.dec_dw = self.dec:getParameters()  -- qnet
+    self.p_dec_w, self.p_dec_dw = self.p_dec:getParameters()  -- autoencoder dec
 
-    self.enc_tmp= self.enc_dw:clone():fill(0)
-    self.enc_g  = self.enc_dw:clone():fill(0)
-    self.enc_g2 = self.enc_dw:clone():fill(0)
+    local enc_w_size = self.enc_w:size(1)
+    local dec_w_size = self.dec_w:size(1)
+    local p_dec_w_size = self.p_dec_w:size(1)
 
-    -- linear
-    self.dec_w, self.dec_dw = self.network.modules[2]:getParameters()
-    self.dec_dw:zero()
+    -- parameter containers
+    -- pred_net
+    self.pred_w = torch.Tensor(enc_w_size+p_dec_w_size)
+    self.pred_w[{{1,enc_w_size}}] = self.enc_w
+    self.pred_w[{{enc_w_size+1, -1}}] = self.p_dec_w
 
-    self.dec_deltas = self.dec_dw:clone():fill(0)
+    self.pred_dw = torch.Tensor(enc_w_size+p_dec_w_size)
+    self.pred_dw[{{1,enc_w_size}}] = self.enc_dw
+    self.pred_dw[{{enc_w_size+1, -1}}] = self.p_dec_dw
 
-    self.dec_tmp= self.dec_dw:clone():fill(0)
-    self.dec_g  = self.dec_dw:clone():fill(0)
-    self.dec_g2 = self.dec_dw:clone():fill(0)
+    -- dqn
+    self.w = torch.Tensor(enc_w_size+dec_w_size)
+    self.w[{{1,enc_w_size}}] = self.enc_w
+    self.w[{{enc_w_size+1, -1}}] = self.dec_w
 
-    ----------------------------------------------------------------------------
+    self.dw = torch.Tensor(enc_w_size, dec_w_size)
+    self.dw[{{1,enc_w_size}}] = self.enc_dw
+    self.dw[{{enc_w_size+1, -1}}] = self.dec_dw
 
+    -- dqn stuff
+    self.dw:zero()
+
+    self.deltas = self.dw:clone():fill(0)
+
+    self.tmp= self.dw:clone():fill(0)
+    self.g  = self.dw:clone():fill(0)
+    self.g2 = self.dw:clone():fill(0)
 
     -- the target_network is for doing q learning updates. This is because
     -- we are not doing tabular updates. So we need an "old" network to
@@ -239,22 +248,6 @@ function nql:__init(args)
     if self.target_q then
         self.target_network = self.network:clone()
     end
-
-
-    ----------------------------------------------------------------------------
-    -- parameters for self.pred_net
-
-    -- here do other initialization for the target q network.
-    -- self.pred_net.modules[1] is the encoder, which is a ParallelTable
-    -- clone the grad params in the ParallelTable just in case?
-    self.pred_net.modules[1].modules[1]:share(
-                                    self.network.modules[1],'weight', 'bias'))
-    self.pred_net.modules[1].modules[2]:share(
-                                    self.network.modules[1],'weight', 'bias'))
-    self.pred_net.modules[1].modules[2]:share(
-                self.pred_net.modules[1].modules[1],'gradWeight', 'gradBias'))
-
-    self.p_dec_w, self.p_dec_dw = self.pred_net.modules[2].getParameters()
 end
 
 
@@ -265,23 +258,25 @@ function nql:reset(state)
     self.best_network = state.best_network
     self.network = state.model
 
-    ----------------------------------------------------------------------------
-    -- parameters for self.network
-    self.enc_w, self.enc_dw = self.network.modules[1]:getParameters()
-    self.enc_dw:zero()
+    self.w, self.dw = self.network:getParameters()
+    self.dw:zero() -- TODO: this doesn't work!
 
-    self.dec_w, self.dec_dw = self.network.modules[2]:getParameters()
-    self.dec_dw:zero()
+    -- don't need to reshare?
 
     ----------------------------------------------------------------------------
-    -- parameters for self.pred_net
-    self.pred_net.modules[1].modules[1]:share(
-                                    self.network.modules[1],'weight', 'bias'))
-    self.pred_net.modules[1].modules[2]:share(
-                                    self.network.modules[1],'weight', 'bias'))
-    self.pred_net.modules[1].modules[2]:share(
-                self.pred_net.modules[1].modules[1],'gradWeight', 'gradBias'))
-    self.p_dec_w, self.p_dec_dw = self.pred_net.modules[2].getParameters()
+    -- -- parameters for self.network
+    -- self.enc_w, self.enc_dw = self.enc:getParameters()
+    -- self.enc_dw:zero()
+    --
+    -- self.dec_w, self.dec_dw = self.dec:getParameters()
+    -- self.dec_dw:zero()
+    --
+    -- ----------------------------------------------------------------------------
+    -- -- parameters for self.pred_net
+    -- self.p_enc.modules[1]:share(self.enc,'weight', 'bias'))
+    -- self.p_enc.modules[2]:share(self.enc,'weight', 'bias'))
+    -- self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
+    -- self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
 
     ----------------------------------------------------------------------------
     self.numSteps = 0
@@ -422,11 +417,11 @@ function nql:qLearnMinibatch()
         end
     end
 
+    -- TODO zero the grad params!
     ---------------------------------------------------------------------------
 
     if fix_pre_encoder then
-        self.network.modules[2]:backward(self.network.modules[1].output,
-                                        targets)
+        self.dec:backward(self.enc.output, targets)
     else
         self.network:backward(s, targets)
     end
@@ -512,11 +507,9 @@ function feval(x, input)
 
     -- self.pred_net:backward(input, grad_output)
 
-    local gradZ = self.pred_net.modules[2]:backward(
-                                self.pred_net.modules[1].output, grad_output)  -- TODO: you need to give this a name in order to get an output!
+    local gradZ = self.p_dec:backward(self.p_enc.output, grad_output)  -- TODO: you need to give this a name in order to get an output!
     gradZ:mul(self.p_lambda)  -- scale gradient at Z
-    self.pred_net.modules[1]:backward(input,gradZ)
-
+    self.p_enc:backward(input,gradZ)
 
     ------------------ regularize -------------------
     if self.p_L2 > 0 then
@@ -531,7 +524,7 @@ function feval(x, input)
     end
 
     -- TODO: not sure if this clamp works
-    self.enc_dw::clamp(-self.p_grad_clip, self.p_grad_clip)
+    self.enc_dw:clamp(-self.p_grad_clip, self.p_grad_clip)
     self.p_dec_dw:clamp(-self.p_grad_clip, self.p_grad_clip)
 
     collectgarbage()
