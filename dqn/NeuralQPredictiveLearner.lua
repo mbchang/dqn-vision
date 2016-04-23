@@ -119,13 +119,13 @@ function nql:__init(args)
     self.predictive_iteration = 0
 
     self.p_args = {}
-    self.sharpening_rate = 10
-    self.p_args.scheduler_iteration = torch.zeros(1)
-    self.p_args.dim_hidden = 200
-    self.p_args.color_channels = self.ncols
-    self.p_args.feature_maps = 72
-    self.noise = 0.1
-    self.num_heads = 3
+    self.p_sharpening_rate = 10
+    self.p_args.p_scheduler_iteration = torch.zeros(1)
+    self.p_args.p_dim_hidden = 200
+    self.p_args.p_color_channels = self.ncols
+    self.p_args.p_feature_maps = 72
+    self.p_noise = 0.1
+    self.p_num_heads = 3
 
 
     -- here, iniitialize predictive network
@@ -199,15 +199,15 @@ function nql:__init(args)
     self.p_enc = self.pred_net.modules[1]
     self.p_dec = self.pred_net.modules[2]
 
-    -- weight sharing
-    self.p_enc.modules[1]:share(self.enc,'weight', 'bias'))
-    self.p_enc.modules[2]:share(self.enc,'weight', 'bias'))
-    self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
-
     -- get params
     self.enc_w, self.enc_dw = self.enc:getParameters()  -- qnet
     self.dec_w, self.dec_dw = self.dec:getParameters()  -- qnet
     self.p_dec_w, self.p_dec_dw = self.p_dec:getParameters()  -- autoencoder dec
+
+    -- weight sharing
+    self.p_enc.modules[1]:share(self.enc,'weight', 'bias'))
+    self.p_enc.modules[2]:share(self.enc,'weight', 'bias'))
+    self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
 
     local enc_w_size = self.enc_w:size(1)
     local dec_w_size = self.dec_w:size(1)

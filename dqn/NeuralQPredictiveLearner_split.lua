@@ -119,13 +119,13 @@ function nql:__init(args)
     self.predictive_iteration = 0
 
     self.p_args = {}
-    self.sharpening_rate = 10
-    self.p_args.scheduler_iteration = torch.zeros(1)
-    self.p_args.dim_hidden = 200
-    self.p_args.color_channels = self.ncols
-    self.p_args.feature_maps = 72
-    self.noise = 0.1
-    self.num_heads = 3
+    self.p_sharpening_rate = 10
+    self.p_args.p_scheduler_iteration = torch.zeros(1)
+    self.p_args.p_dim_hidden = 200
+    self.p_args.p_color_channels = self.ncols
+    self.p_args.p_feature_maps = 72
+    self.p_noise = 0.1
+    self.p_num_heads = 3
 
     -- here, iniitialize predictive network
     self.pred_net = load_pred_net(self.p_args) -- this may be faster
@@ -210,6 +210,10 @@ function nql:__init(args)
     self.p_enc = self.pred_net.modules[1]
     self.p_dec = self.pred_net.modules[2]
 
+    self.enc_w, self.enc_dw = self.enc:getParameters()
+    self.dec_w, self.dec_dw = self.dec:getParameters()
+    self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
+
     -- share encoder params, not decoder params
     self.p_enc.modules[1]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
@@ -221,7 +225,6 @@ function nql:__init(args)
     -- self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
 
     -- encoder (shared)
-    self.enc_w, self.enc_dw = self.enc:getParameters()
     self.enc_dw:zero()
 
     self.enc_deltas = self.enc_dw:clone():fill(0)
@@ -231,7 +234,6 @@ function nql:__init(args)
     self.enc_g2 = self.enc_dw:clone():fill(0)
 
     -- linear dqn
-    self.dec_w, self.dec_dw = self.dec:getParameters()
     self.dec_dw:zero()
 
     self.dec_deltas = self.dec_dw:clone():fill(0)
@@ -241,7 +243,6 @@ function nql:__init(args)
     self.dec_g2 = self.dec_dw:clone():fill(0)
 
     -- autoencoder decoder
-    self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
     self.p_dec_dw:zero()
 
     ----------------------------------------------------------------------------
@@ -264,9 +265,10 @@ function nql:reset(state)
     self.network = state.model
 
     ----------------------------------------------------------------------------
-    self.p_enc.modules[1]:share(self.enc,'weight', 'bias'))
-    self.p_enc.modules[2]:share(self.enc,'weight', 'bias'))
-    self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
+    self.p_enc.modules[1]:share(self.enc,
+                'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
+    self.p_enc.modules[2]:share(self.enc,
+                'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
 
     -- parameters for self.network
     self.enc_w, self.enc_dw = self.enc:getParameters()
