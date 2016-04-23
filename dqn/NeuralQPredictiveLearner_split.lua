@@ -265,20 +265,18 @@ function nql:reset(state)
     self.network = state.model
 
     ----------------------------------------------------------------------------
+    self.enc_w, self.enc_dw = self.enc:getParameters()
+    self.dec_w, self.dec_dw = self.dec:getParameters()
+    self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
+
     self.p_enc.modules[1]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
     self.p_enc.modules[2]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
 
-    -- parameters for self.network
-    self.enc_w, self.enc_dw = self.enc:getParameters()
-    self.enc_dw:zero()
-
-    self.dec_w, self.dec_dw = self.dec:getParameters()
-    self.dec_dw:zero()
-
-    -- parameters for self.pred_net
-    self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
+    self.enc_dw:zero()  -- self.network
+    self.dec_dw:zero()  -- self.network
+    self.p_dec_dw:zero()  -- self.pred_net
 
     ----------------------------------------------------------------------------
     self.numSteps = 0
