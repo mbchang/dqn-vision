@@ -3,7 +3,7 @@
 require "initenv"
 local optnet = require 'optnet'
 
-function load_udcign_untrained(encoder, args)
+function load_encoder(encoder, args)
     local encoder_dim = args.hist_len*args.p_dim_hidden
 
     local net = nn.Sequential()

@@ -215,10 +215,12 @@ function nql:__init(args)
     self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
 
     -- share encoder params, not decoder params
-    self.p_enc.modules[1]:share(self.enc,
-                'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
-    self.p_enc.modules[2]:share(self.enc,
-                'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
+    -- p_enc has a ParallelTable
+    -- self.enc has a reshape first
+    self.p_enc.modules[1]:share(self.enc.modules[2],
+                'weight', 'bias', 'gradWeight', 'gradBias'))
+    self.p_enc.modules[2]:share(self.enc.modules[2],
+                'weight', 'bias', 'gradWeight', 'gradBias'))
 
     -- self.p_enc.modules[1]:share(self.enc,'weight', 'bias')) -- ParallelTable
     -- self.p_enc.modules[2]:share(self.enc,'weight', 'bias')) -- ParallelTable
@@ -269,10 +271,10 @@ function nql:reset(state)
     self.dec_w, self.dec_dw = self.dec:getParameters()
     self.p_dec_w, self.p_dec_dw = self.p_dec.getParameters()
 
-    self.p_enc.modules[1]:share(self.enc,
-                'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
-    self.p_enc.modules[2]:share(self.enc,
-                'weight', 'bias', 'gradWeight', 'gradBias')) -- ParallelTable
+    self.p_enc.modules[1]:share(self.enc.modules[2],
+                'weight', 'bias', 'gradWeight', 'gradBias'))
+    self.p_enc.modules[2]:share(self.enc.modules[2],
+                'weight', 'bias', 'gradWeight', 'gradBias'))
 
     self.enc_dw:zero()  -- self.network
     self.dec_dw:zero()  -- self.network
