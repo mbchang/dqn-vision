@@ -5,7 +5,7 @@ require 'Print'
 
 -- input: {input1, input2}
 -- output: {enc1, enc2}
-local DownsampledEncoder2 = function(dim_hidden, color_channels, feature_maps)
+local DownsampledEncoder2_parallel = function(dim_hidden, color_channels, feature_maps)
 
     local filter_size = 5
     local stride = 1
@@ -28,7 +28,14 @@ local DownsampledEncoder2 = function(dim_hidden, color_channels, feature_maps)
     enc1:add(nn.Reshape((feature_maps/4) * encoded_size * encoded_size))
     enc1:add(nn.Linear((feature_maps/4) * encoded_size * encoded_size, dim_hidden))
 
-    return enc1
+    local enc2 = enc1:clone('weight', 'bias', 'gradWeight', 'gradBias')
+
+    -- make two copies of an encoder
+    local net = nn.ParallelTable()
+    net:add(enc1)
+    net:add(enc2)
+
+    return net
 end
 
-return DownsampledEncoder2
+return DownsampledEncoder2_parallel
