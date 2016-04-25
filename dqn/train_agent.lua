@@ -44,10 +44,15 @@ cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
+cmd:option('-global_fixweights', false, 'fix encoder weights')
+cmd:option('-global_reshape', false, 'fix encoder weights')
 
 cmd:text()
 
 local opt = cmd:parse(arg)
+
+global_args = {fixweights = opt.global_fixweights,
+               reshape = opt.global_reshape}
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)

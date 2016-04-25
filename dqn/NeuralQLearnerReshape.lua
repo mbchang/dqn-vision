@@ -14,8 +14,14 @@ local nql = torch.class('dqn.NeuralQLearnerReshape')
 
 -- false for backpropagating all the way
 -- true for backpropagating only through the linear
-local fix_pre_encoder = false
-local udcign_reshape = true
+local fix_pre_encoder = global_args.fixweights
+local udcign_reshape = global_args.reshape
+
+print('global args')
+print('fix_pre_encoder ')
+print(fix_pre_encoder)
+print('udcign_reshape ')
+print(udcign_reshape)
 
 function nql:__init(args)
     self.state_dim  = args.state_dim -- State dimensionality.
@@ -308,8 +314,15 @@ function nql:qLearnMinibatch()
     -- actually, we mutate self.dw, so we should actualy make gradOutput = 0
     -- this is fine, because we zero out self.dw initially
     if fix_pre_encoder then
-        self.network.modules[2]:backward(self.network.modules[1].output,
+        if udcign_reshape then
+            local bsize = s:nElement()/84/84/4
+            local encout = self.network.modules[1].output  -- necessary to clone()?
+            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
+            self.network.modules[2]:backward(encout,targets)
+        else
+            self.network.modules[2]:backward(self.network.modules[1].output,
                                         targets)
+        end
     else
         -- self.network:backward(s, targets)
 
