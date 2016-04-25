@@ -11,7 +11,7 @@ require 'nngraph'
 require 'nnutils'
 require 'image'
 require 'Scale'
-require 'NeuralQLearner'
+-- require 'NeuralQLearner'
 require 'TransitionTable'
 require 'Rectifier'
 
@@ -128,6 +128,12 @@ function setup(_opt)
     _opt.agent_params.verbose = _opt.verbose
     if not _opt.agent_params.state_dim then
         _opt.agent_params.state_dim = gameEnv:nObsFeature()
+    end
+
+    if _opt.agent == 'NeuralQLearner' then
+        require 'NeuralQLearner'
+    elseif _opt.agent == 'NeuralQLearnerReshape' then
+        require 'NeuralQLearnerReshape'
     end
 
     local agent = dqn[_opt.agent](_opt.agent_params)

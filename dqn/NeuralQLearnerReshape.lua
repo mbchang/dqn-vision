@@ -10,7 +10,7 @@ if not dqn then
     require 'initenv'
 end
 
-local nql = torch.class('dqn.NeuralQLearner')
+local nql = torch.class('dqn.NeuralQLearnerReshape')
 
 -- false for backpropagating all the way
 -- true for backpropagating only through the linear
@@ -224,8 +224,9 @@ function nql:getQUpdate(args)
     -- Compute max_a Q(s_2, a).
     -- q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
     if udcign_reshape then
+        local bsize = s2:nElement()/84/84/4
         local encout = target_q_net.modules[1]:forward(s2)
-        encout = encout:reshape(self.minibatch_size,800) -- hardcoded
+        encout = encout:reshape(bsize,800) -- hardcoded
         q2_max = target_q_net.modules[2]:forward(encout):float():max(2)
     else
         q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
@@ -249,8 +250,9 @@ function nql:getQUpdate(args)
     -- local q_all = self.network:forward(s):float()
     local q_all
     if udcign_reshape then
+        local bsize = s:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(s)
-        encout = encout:reshape(self.minibatch_size,800) -- hardcoded
+        encout = encout:reshape(bsize,800) -- hardcoded
         q_all = self.network.modules[2]:forward(encout):float()
     else
         q_all = self.network:forward(s2):float()  -- getting an error here
@@ -312,10 +314,11 @@ function nql:qLearnMinibatch()
         -- self.network:backward(s, targets)
 
         if udcign_reshape then
+            local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(self.minibatch_size,800) -- hardcoded  resize or reshape?
+            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
             local grad_encout = self.network.modules[2]:backward(encout,targets)
-            grad_encout = grad_encout:reshape(self.minibatch_size*4,200)
+            grad_encout = grad_encout:reshape(bsize*4,200)
             self.network.modules[1]:backward(s,grad_encout)
         else
             self.network:backward(s, targets)
@@ -507,9 +510,11 @@ function nql:greedy(state)
     -- local q = self.network:forward(state):float():squeeze()
     local q
     if udcign_reshape then
+        state = state:resize(state:nElement()/84/84,1,84,84) -- hardcoded
+        local bsize = state:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(state)
-        encout = encout:reshape(1,800) -- hardcoded
-        q = sefl.network.modules[2]:forward(encout):float():squeeze()
+        encout = encout:reshape(bsize,800) -- hardcoded
+        q = self.network.modules[2]:forward(encout):float():squeeze()
     else
         q = self.network:forward(state):float():squeeze()
     end
