@@ -15,6 +15,7 @@ local nql = torch.class('dqn.NeuralQLearner')
 -- false for backpropagating all the way
 -- true for backpropagating only through the linear
 local fix_pre_encoder = false
+local udcign_reshape = true
 
 function nql:__init(args)
     self.state_dim  = args.state_dim -- State dimensionality.
@@ -198,6 +199,11 @@ function nql:getQUpdate(args)
     s2 = args.s2
     term = args.term
 
+    if udcign_reshape then
+        s = s:resize(s:nElement()/84/84,1,84,84)
+        s2 = s2:resize(s2:nElement()/84/84,1,84,84)
+    end
+
     -- The order of calls to forward is a bit odd in order
     -- to avoid unnecessary calls (we only need 2).
 
@@ -216,7 +222,14 @@ function nql:getQUpdate(args)
     collectgarbage()
 
     -- Compute max_a Q(s_2, a).
-    q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
+    -- q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
+    if udcign_reshape then
+        local encout = target_q_net.modules[1]:forward(s2)
+        encout = encout:reshape(self.minibatch_size,800) -- hardcoded
+        q2_max = target_q_net.modules[2]:forward(encout):float():max(2)
+    else
+        q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
+    end
 
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
@@ -233,7 +246,16 @@ function nql:getQUpdate(args)
     collectgarbage()
 
     -- q = Q(s,a)
-    local q_all = self.network:forward(s):float()
+    -- local q_all = self.network:forward(s):float()
+    local q_all
+    if udcign_reshape then
+        local encout = self.network.modules[1]:forward(s)
+        encout = encout:reshape(self.minibatch_size,800) -- hardcoded
+        q_all = self.network.modules[2]:forward(encout):float()
+    else
+        q_all = self.network:forward(s2):float()  -- getting an error here
+    end
+
     q = torch.FloatTensor(q_all:size(1))
     for i=1,q_all:size(1) do
         q[i] = q_all[i][a[i]]
@@ -270,6 +292,11 @@ function nql:qLearnMinibatch()
     -- zero gradients of parameters
     self.dw:zero()
 
+    if udcign_reshape then
+        s = s:resize(s:nElement()/84/84,1,84,84)
+        -- TODO: do I need to resize targets?
+    end
+
     -- get new gradient
 
     -- Do I need to do anything with self.w, self.wc for not backpropagating grads?]
@@ -282,7 +309,17 @@ function nql:qLearnMinibatch()
         self.network.modules[2]:backward(self.network.modules[1].output,
                                         targets)
     else
-        self.network:backward(s, targets)
+        -- self.network:backward(s, targets)
+
+        if udcign_reshape then
+            local encout = self.network.modules[1].output  -- necessary to clone()?
+            encout = encout:reshape(self.minibatch_size,800) -- hardcoded  resize or reshape?
+            local grad_encout = self.network.modules[2]:backward(encout,targets)
+            grad_encout = grad_encout:reshape(self.minibatch_size*4,200)
+            self.network.modules[1]:backward(s,grad_encout)
+        else
+            self.network:backward(s, targets)
+        end
     end
 
     -- add weight cost to gradient
@@ -467,7 +504,16 @@ function nql:greedy(state)
         state = state:cuda()
     end
 
-    local q = self.network:forward(state):float():squeeze()
+    -- local q = self.network:forward(state):float():squeeze()
+    local q
+    if udcign_reshape then
+        local encout = self.network.modules[1]:forward(state)
+        encout = encout:reshape(1,800) -- hardcoded
+        q = sefl.network.modules[2]:forward(encout):float():squeeze()
+    else
+        q = self.network:forward(state):float():squeeze()
+    end
+
     local maxq = q[1]
     local besta = {1}
 

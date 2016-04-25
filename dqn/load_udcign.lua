@@ -10,13 +10,13 @@ function load_encoder(encoder, args)
 
     -- encoder
     local pre_encoder = nn.Sequential()
-    pre_encoder:add(nn.Reshape(args.minibatch_size*args.hist_len,1,84,84))
+    -- pre_encoder:add(nn.Reshape(args.minibatch_size*args.hist_len,1,84,84))
+    -- pre_encoder:add(nn.Reshape(1,84,84,true))
     pre_encoder:add(encoder) -- output is (bsize*hist_len, 200)
     net:add(pre_encoder)
 
     -- add the last fully connected layer (to actions)
     local linear = nn.Sequential()
-    linear:add(nn.Reshape(args.minibatch_size,encoder_dim))
     linear:add(nn.Linear(encoder_dim, args.n_actions))
 
     net:add(linear)
