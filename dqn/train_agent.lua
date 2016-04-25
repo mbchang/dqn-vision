@@ -44,6 +44,8 @@ cmd:option('-verbose', 2,
            'the higher the level, the more information is printed to screen')
 cmd:option('-threads', 1, 'number of BLAS threads')
 cmd:option('-gpu', -1, 'gpu flag')
+
+-- global args
 cmd:option('-global_fixweights', false, 'fix encoder weights')
 cmd:option('-global_reshape', false, 'fix encoder weights')
 
