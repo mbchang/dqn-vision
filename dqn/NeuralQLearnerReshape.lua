@@ -17,12 +17,6 @@ local nql = torch.class('dqn.NeuralQLearnerReshape')
 local fix_pre_encoder = global_args.fixweights
 local udcign_reshape = global_args.reshape
 
-print('global args')
-print('fix_pre_encoder ')
-print(fix_pre_encoder)
-print('udcign_reshape ')
-print(udcign_reshape)
-
 function nql:__init(args)
     self.state_dim  = args.state_dim -- State dimensionality.
     self.actions    = args.actions

@@ -14,7 +14,7 @@ local nql = torch.class('dqn.NeuralQLearner')
 
 -- false for backpropagating all the way
 -- true for backpropagating only through the linear
-local fix_pre_encoder = false
+local fix_pre_encoder = global_args.fixweights
 
 function nql:__init(args)
     self.state_dim  = args.state_dim -- State dimensionality.
