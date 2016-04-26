@@ -5,7 +5,7 @@ See LICENSE file for full terms of limited license.
 ]]
 
 local optnet = require 'optnet'
-require 'rmsprop'
+-- require 'rmsprop'
 require 'MotionBCECriterion'
 require 'predictive_udcign_atari3'
 
@@ -121,7 +121,7 @@ function nql:__init(args)
     self.predictive_iteration = 0
 
     self.p_args = {}
-    self.p_sharpening_rate = 10
+    self.p_args.p_sharpening_rate = 10
     self.p_args.p_scheduler_iteration = torch.zeros(1)
     self.p_args.p_dim_hidden = 200
     self.p_args.p_color_channels = self.ncols
@@ -132,7 +132,8 @@ function nql:__init(args)
 
     -- here, iniitialize predictive network
     self.pred_net = load_pred_net(self.p_args) -- this may be faster
-    self.pred_criterion = nn.MotionBCECriterion(self.p_motion_scale)
+    -- self.pred_criterion = nn.MotionBCECriterion(self.p_motion_scale)
+    self.pred_criterion = nn.BCECriterion()
     print('Prediction Network')
     print(self.pred_net)
     ----------------------------------------------------------------------------
@@ -221,10 +222,98 @@ function nql:__init(args)
     -- share encoder params, not decoder params
     -- p_enc has a ParallelTable
     -- self.enc has a reshape first
-    self.p_enc.modules[1]:share(self.enc.modules[1],
+    self.p_enc.modules[1]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')
-    self.p_enc.modules[2]:share(self.enc.modules[1],
+    self.p_enc.modules[2]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')
+
+    -- here do debugging stuff
+    print('orig')
+
+    print('self.network.modules[1]')
+    print(({self.network.modules[1]:parameters()})[1][1]:mean())
+    print(({self.network.modules[1]:parameters()})[2][1]:mean())
+    print('self.enc')
+    print(({self.enc:parameters()})[1][1]:mean())
+    print(({self.enc:parameters()})[2][1]:mean())
+    print('self.pred_net.modules[1]')
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
+    print('self.p_enc')
+    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+
+    print('zero')
+    self.enc_dw:fill(0.7)  -- this is weird!
+    self.dec_dw:fill(0.7)
+    self.p_dec_dw:fill(0.7)  -- this is nan!
+    print('enc_dw and p_dec_dw mean before')
+    print(self.enc_dw:mean())
+    print(self.dec_dw:mean())
+    print(self.p_dec_dw:mean())
+
+    print('after')
+    -- self.enc_w:fill(0.3)
+    -- self.p_dec_w:fill(0.3)
+    -- self.enc_dw:fill(0.7)
+    -- self.p_dec_dw:fill(0.7)
+
+
+
+    -- it works if I don't fill it like above, but it doesn't work otherwise!
+    local input = {torch.rand(32,1,84,84):cuda(),torch.rand(32,1,84,84):cuda()}
+    local gradOutput = torch.rand(32,1,84,84):cuda()
+    print(input)
+    print(gradOutput:size())
+    self.pred_net:forward(input)
+    self.pred_net:backward(input, gradOutput)
+    print('enc_dw and p_dec_dw mean after')
+    print(self.enc_dw:mean())  -- this is weird! they don't get updated!
+    print(self.p_dec_dw:mean())  -- this is nan! they don't get updated!
+
+    print('self.network.modules[1]')
+    print(({self.network.modules[1]:parameters()})[1][1]:mean())
+    print(({self.network.modules[1]:parameters()})[2][1]:mean())
+    print('self.enc')
+    print(({self.enc:parameters()})[1][1]:mean())
+    print(({self.enc:parameters()})[2][1]:mean())
+    print('self.pred_net.modules[1]')
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
+    print('self.p_enc')
+    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+
+    print('whole pred_net')
+    self.enc_w:fill(0.5)
+    self.p_dec_w:fill(0.5)
+    self.enc_dw:fill(0.2)
+    self.p_dec_dw:fill(0.2)
+    print('self.pred_net')
+    print(({self.pred_net:parameters()})[1][1]:mean())
+    print(({self.pred_net:parameters()})[2][1]:mean())
+
+
+    -- works up to here
+    -- assert(false)
+
+
+
+
+
+
+
+
+
+
 
     -- self.p_enc.modules[1]:share(self.enc,'weight', 'bias')) -- ParallelTable
     -- self.p_enc.modules[2]:share(self.enc,'weight', 'bias')) -- ParallelTable
@@ -275,9 +364,9 @@ function nql:reset(state)
     self.dec_w, self.dec_dw = self.dec:getParameters()
     self.p_dec_w, self.p_dec_dw = self.p_dec:getParameters()
 
-    self.p_enc.modules[1]:share(self.enc.modules[2],
+    self.p_enc.modules[1]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')
-    self.p_enc.modules[2]:share(self.enc.modules[2],
+    self.p_enc.modules[2]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')
 
     self.enc_dw:zero()  -- self.network
@@ -427,22 +516,48 @@ function nql:qLearnMinibatch()
     --     return loss, function_grad_params
     -- end
 
+
+
+    -- debugging stuff
+    print('orig')
+    print('self.network.modules[1]')
+    print(({self.network.modules[1]:parameters()})[1][1]:mean())
+    print(({self.network.modules[1]:parameters()})[2][1]:mean())
+    print('self.enc')
+    print(({self.enc:parameters()})[1][1]:mean())
+    print(({self.enc:parameters()})[2][1]:mean())
+    print('self.pred_net.modules[1]')
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
+    print('self.p_enc')
+    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+
+
+
+
+
+
     -- mutate the scheduler_iteration
     self.predictive_iteration = self.predictive_iteration+1
-    self.p_args.scheduler_iteration[1] = self.p_args.scheduler_iteration[1]+1
+    self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
 
     -- first split into batches
     local s_reshaped = s:reshape(self.minibatch_size, self.hist_len, 84, 84)
     local s_pairs = {}
-    table.insert(s_pairs, {s_reshaped[{{},{1,2}}]})
-    table.insert(s_pairs, {s_reshaped[{{},{2,3}}]})
-    table.insert(s_pairs, {s_reshaped[{{},{3,4}}]})
+    table.insert(s_pairs, {s_reshaped[{{},{1}}],s_reshaped[{{},{2}}]})
+    table.insert(s_pairs, {s_reshaped[{{},{2}}],s_reshaped[{{},{3}}]})
+    table.insert(s_pairs, {s_reshaped[{{},{3}}],s_reshaped[{{},{4}}]})
 
     for k,s_pair in pairs(s_pairs) do
         -- zero grad params before rmsprop
-        self.enc_dw:zero()
-        self.p_dec_dw:zero()
-        local new_params, _ = rmsprop(feval, s_pair,
+        self.enc_dw:fill(0.4)
+        self.p_dec_dw:fill(0.4)
+        local new_params, _ = self:rmsprop(_, s_pair,
                         torch.cat{self.enc_w,self.p_dec_w}, self.optim_state)
         -- how to update?
         -- first try this and then see if the controller function rmsprop works
@@ -466,6 +581,29 @@ function nql:qLearnMinibatch()
         end
     end
 
+
+    print('after')
+    print('self.network.modules[1]')
+    print(({self.network.modules[1]:parameters()})[1][1]:mean())
+    print(({self.network.modules[1]:parameters()})[2][1]:mean())
+    print('self.enc')
+    print(({self.enc:parameters()})[1][1]:mean())
+    print(({self.enc:parameters()})[2][1]:mean())
+    print('self.pred_net.modules[1]')
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
+    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
+    print('self.p_enc')
+    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
+    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+
+
+    assert(false)
+
+
     -- at this point, self.enc_w and self.p_dec_w have been updated
     ---------------------------------------------------------------------------
 
@@ -484,6 +622,7 @@ function nql:qLearnMinibatch()
     -- end
 
     if fix_pre_encoder then
+        print('fix pre encoder')
         if udcign_reshape then
             local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
@@ -495,7 +634,7 @@ function nql:qLearnMinibatch()
         end
     else
         -- self.network:backward(s, targets)
-
+        print('no fix pre encoder')
         if udcign_reshape then
             local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
@@ -556,19 +695,23 @@ end
 
 -- feval for full_udcign
 -- do fwd/bwd and return loss, grad_params
-function feval(x, input)
+function nql:feval(x, input)
     assert(x:size(1) == self.enc_w:size(1) + self.p_dec_w:size(1))
-    if x[{{1,self.enc_w:size(1)}}] ~= self.enc_w then
-        error("Params not equal to given feval argument.")
-        self.enc_w:copy(x[{{1,self.enc_w:size(1)}}])
-    end
-    if x[{{self.enc_w:size(1)+1,-1}}] ~= self.p_dec_w then
-        error("Params not equal to given feval argument.")
-        self.p_dec_w:copy(x[{{self.enc_w:size(1)+1,-1}}])
-    end
+    -- if x[{{1,self.enc_w:size(1)}}] ~= self.enc_w then
+    --     print(x[{{1,self.enc_w:size(1)}}]:norm())
+    --     print(self.enc_w:norm())
+    --     error("Params not equal to given feval argument.")
+    --     self.enc_w:copy(x[{{1,self.enc_w:size(1)}}])
+    -- end
+    -- if x[{{self.enc_w:size(1)+1,-1}}] ~= self.p_dec_w then
+    --     print(x[{{self.enc_w:size(1)+1,-1}}]:norm())
+    --     print(self.p_dec_w:norm())
+    --     error("Params not equal to given feval argument.")
+    --     self.p_dec_w:copy(x[{{self.enc_w:size(1)+1,-1}}])
+    -- end
 
-    self.enc_dw:zero()  -- TODO: wait, doing a backward on pred_net doesn't mutate this, because enc_dw is for the dqn encoder!
-    self.p_dec_dw:zero()
+    -- self.enc_dw:zero()  -- TODO: wait, doing a backward on pred_net doesn't mutate this, because enc_dw is for the dqn encoder!
+    -- self.p_dec_dw:zero()
 
     ------------------- forward pass -------------------
     self.pred_net:training() -- make sure we are in correct mode
@@ -576,6 +719,9 @@ function feval(x, input)
     local output = self.pred_net:forward(input)
     local loss = self.pred_criterion:forward(output, input[2])
     local grad_output = self.pred_criterion:backward(output, input[2]):clone()
+
+    print('grad output')
+    print(grad_output:size())
 
     -- self.pred_net:backward(input, grad_output)
 
@@ -588,9 +734,21 @@ function feval(x, input)
     local enc_dw_clone = self.enc_dw:clone()
     print('before backward')
     print(enc_dw_clone:norm())
-    self.pred_net:backward(input,grad_output)  -- mutats self.enc_dw
+    print('in pred net')
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())
+    print(({self.pred_net:parameters()})[2][1]:norm())
+    print('enc_dw and p_dec_dw before')
+    print(self.enc_dw:mean())  -- this is weird! they don't get updated!
+    print(self.p_dec_dw:mean())  -- this is nan! they don't get updated!
+    self.pred_net:backward(input,grad_output)  -- mutats self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
+    print('enc_dw and p_dec_dw after')
+    print(self.enc_dw:mean())  -- this is weird! they don't get updated!
+    print(self.p_dec_dw:mean())  -- this is nan! they don't get updated!
     print('after backward')
     print(self.enc_dw:norm())
+    print('in pred net')
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())   -- NOTE They don't even get updated in the actual network?
+    print(({self.pred_net:parameters()})[2][1]:norm())
     self.enc_dw:mul(self.p_lambda)
 
     -- okay, so you can copy self.pred_net:parameters() and then pass that
@@ -846,6 +1004,74 @@ end
 
 
 function nql:report()
+    print('self.enc')
+    print(self.enc_dw:norm())
+    print('self.dec')
+    print(self.dec_dw:norm())
+    print('self.p_dec')
+    print(self.p_dec_dw:norm())
+    print('overall')
     print(get_weight_norms(self.network))
     print(get_grad_norms(self.network))
+end
+
+--------------------------------------------------------------------------------
+--[[ An implementation of RMSprop
+
+ARGS:
+
+- 'opfunc' : a function that takes a single input (X), the point
+             of a evaluation, and returns f(X) and df/dX
+- 'x'      : the initial point
+- 'config` : a table with configuration parameters for the optimizer
+- 'config.learningRate'      : learning rate
+- 'config.alpha'             : smoothing constant
+- 'config.epsilon'           : value with which to initialise m
+- 'config.weightDecay'       : weight decay
+- 'state'                    : a table describing the state of the optimizer;
+                               after each call the state is modified
+- 'state.m'                  : leaky sum of squares of parameter gradients,
+- 'state.tmp'                : and the square root (with epsilon smoothing)
+
+RETURN:
+- `x`     : the new x vector
+- `f(x)`  : the function, evaluated before the update
+
+]]
+
+function nql:rmsprop(opfunc, input, x, config, state)
+    -- (0) get/update state
+    local config = config or {}
+    local state = state or config
+    local lr = config.learningRate or 1e-2
+    local alpha = config.alpha or 0.99
+    local epsilon = config.epsilon or 1e-8
+    local wd = config.weightDecay or 0
+
+    -- (1) evaluate f(x) and df/dx
+    local fx, dfdx = self:feval(x, input)  -- hardcoded
+    print('dfdx')
+    print(dfdx:norm())
+
+    -- (2) weight decay
+    if wd ~= 0 then
+      dfdx:add(wd, x)
+    end
+
+    -- (3) initialize mean square values and square gradient storage
+    if not state.m then
+      state.m = torch.Tensor():typeAs(x):resizeAs(dfdx):zero()
+      state.tmp = torch.Tensor():typeAs(x):resizeAs(dfdx)
+    end
+
+    -- (4) calculate new (leaky) mean squared values
+    state.m:mul(alpha)
+    state.m:addcmul(1.0-alpha, dfdx, dfdx)
+
+    -- (5) perform update
+    state.tmp:sqrt(state.m):add(epsilon)
+    x:addcdiv(-lr, dfdx, state.tmp)
+
+    -- return x*, f(x) before optimization
+    return x, {fx}
 end
