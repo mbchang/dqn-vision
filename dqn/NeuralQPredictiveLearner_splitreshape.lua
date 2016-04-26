@@ -108,7 +108,7 @@ function nql:__init(args)
     self.p_motion_scale = 3
     self.p_grad_clip = 3
     self.p_L2 = 0
-    self.p_learning_rate = 0.0001
+    self.p_learning_rate = 0.1
     self.p_learning_rate_decay = 0.97
     self.p_learning_rate_decay_interval = 4000
     self.p_learning_rate_decay_after = 18000
@@ -230,31 +230,48 @@ function nql:__init(args)
     -- here do debugging stuff
     print('orig')
 
-    print('self.network.modules[1]')
-    print(({self.network.modules[1]:parameters()})[1][1]:mean())
-    print(({self.network.modules[1]:parameters()})[2][1]:mean())
-    print('self.enc')
-    print(({self.enc:parameters()})[1][1]:mean())
-    print(({self.enc:parameters()})[2][1]:mean())
-    print('self.pred_net.modules[1]')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
-    print('self.p_enc')
-    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+    -- print('self.network.modules[1]')
+    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
+    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
+    -- print('self.enc')
+    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
+    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
+    -- print('self.pred_net.modules[1]')
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
+    -- print('self.p_enc')
+    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
+    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
+    --
+    -- print('fill')
+    -- self.enc_dw:fill(0.7)
+    -- self.dec_dw:fill(0.7)
+    -- self.p_dec_dw:fill(0.7)
+    -- print('enc_dw and p_dec_dw mean before')
+    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
+    -- print(self.dec_dw:mean()..'\tdec gp')  -- dec gp
+    -- print(self.p_dec_dw:mean()..'\tauto dec gp')  -- auto dec gp
+    --
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:add(7))
+    -- print({self.pred_net.modules[1].modules[1]:parameters()})
+    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
+    --
+    -- print('AAAAAAA')
+    -- self.enc_dw:add(1)
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
+    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
+    -- print('AAAAAAA')
 
-    print('zero')
-    self.enc_dw:fill(0.7)  -- this is weird!
-    self.dec_dw:fill(0.7)
-    self.p_dec_dw:fill(0.7)  -- this is nan!
-    print('enc_dw and p_dec_dw mean before')
-    print(self.enc_dw:mean())
-    print(self.dec_dw:mean())
-    print(self.p_dec_dw:mean())
+
+
+
 
     print('after')
     -- self.enc_w:fill(0.3)
@@ -263,43 +280,43 @@ function nql:__init(args)
     -- self.p_dec_dw:fill(0.7)
 
 
-
+    -- fwd/bwd test on autoencoder
     -- it works if I don't fill it like above, but it doesn't work otherwise!
     local input = {torch.rand(32,1,84,84):cuda(),torch.rand(32,1,84,84):cuda()}
     local gradOutput = torch.rand(32,1,84,84):cuda()
-    print(input)
-    print(gradOutput:size())
-    self.pred_net:forward(input)
-    self.pred_net:backward(input, gradOutput)
-    print('enc_dw and p_dec_dw mean after')
-    print(self.enc_dw:mean())  -- this is weird! they don't get updated!
-    print(self.p_dec_dw:mean())  -- this is nan! they don't get updated!
-
-    print('self.network.modules[1]')
-    print(({self.network.modules[1]:parameters()})[1][1]:mean())
-    print(({self.network.modules[1]:parameters()})[2][1]:mean())
-    print('self.enc')
-    print(({self.enc:parameters()})[1][1]:mean())
-    print(({self.enc:parameters()})[2][1]:mean())
-    print('self.pred_net.modules[1]')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
-    print('self.p_enc')
-    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
-
-    print('whole pred_net')
-    self.enc_w:fill(0.5)
-    self.p_dec_w:fill(0.5)
-    self.enc_dw:fill(0.2)
-    self.p_dec_dw:fill(0.2)
-    print('self.pred_net')
-    print(({self.pred_net:parameters()})[1][1]:mean())
-    print(({self.pred_net:parameters()})[2][1]:mean())
+    -- print(input)
+    -- print(gradOutput:size())
+    -- self.pred_net:forward(input)
+    -- self.pred_net:backward(input, gradOutput)
+    -- print('enc_dw and p_dec_dw mean after')
+    -- print(self.enc_dw:mean()..'\tenc gp')  -- they do get updated here
+    -- print(self.p_dec_dw:mean()..'\tauto dec gp')  -- they do get updated here
+    --
+    -- print('self.network.modules[1]')
+    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
+    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
+    -- print('self.enc')
+    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
+    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
+    -- print('self.pred_net.modules[1]')
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
+    -- print('self.p_enc')
+    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
+    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
+    --
+    -- print('whole pred_net')
+    -- -- self.enc_w:fill(0.5)
+    -- -- self.p_dec_w:fill(0.5)
+    -- self.enc_dw:fill(0.2)
+    -- self.p_dec_dw:fill(0.2)
+    -- print('self.pred_net')
+    -- print(({self.pred_net:parameters()})[1][1]:mean()..'\tautoencoder p')  -- autoencoder p
+    -- print(({self.pred_net:parameters()})[2][1]:mean()..'\tautoencoder gp')  -- autoencoder gp
 
 
     -- works up to here
@@ -311,33 +328,27 @@ function nql:__init(args)
 
 
 
+    -- TODO: This is real code! Uncomment me!
 
-
-
-
-    -- self.p_enc.modules[1]:share(self.enc,'weight', 'bias')) -- ParallelTable
-    -- self.p_enc.modules[2]:share(self.enc,'weight', 'bias')) -- ParallelTable
-    -- self.p_enc.modules[2]:share(self.p_enc.modules[1],'gradWeight', 'gradBias'))
-
-    -- encoder (shared)
+    -- -- encoder (shared)
     self.enc_dw:zero()
-
+    --
     self.enc_deltas = self.enc_dw:clone():fill(0)
 
     self.enc_tmp= self.enc_dw:clone():fill(0)
     self.enc_g  = self.enc_dw:clone():fill(0)
     self.enc_g2 = self.enc_dw:clone():fill(0)
-
-    -- linear dqn
+    --
+    -- -- linear dqn
     self.dec_dw:zero()
-
+    --
     self.dec_deltas = self.dec_dw:clone():fill(0)
-
+    --
     self.dec_tmp= self.dec_dw:clone():fill(0)
     self.dec_g  = self.dec_dw:clone():fill(0)
     self.dec_g2 = self.dec_dw:clone():fill(0)
-
-    -- autoencoder decoder
+    --
+    -- -- autoencoder decoder
     self.p_dec_dw:zero()
 
     ----------------------------------------------------------------------------
@@ -518,24 +529,25 @@ function nql:qLearnMinibatch()
 
 
 
-    -- debugging stuff
-    print('orig')
-    print('self.network.modules[1]')
-    print(({self.network.modules[1]:parameters()})[1][1]:mean())
-    print(({self.network.modules[1]:parameters()})[2][1]:mean())
-    print('self.enc')
-    print(({self.enc:parameters()})[1][1]:mean())
-    print(({self.enc:parameters()})[2][1]:mean())
-    print('self.pred_net.modules[1]')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
-    print('self.p_enc')
-    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+    -- -- debugging stuff
+    -- print('before rmsprop>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    -- print('self.network.modules[1]')
+    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
+    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
+    -- print('self.enc')
+    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
+    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
+    -- print('self.pred_net.modules[1]')
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
+    -- print('self.p_enc')
+    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
+    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
+    -- print('-------------------------------------------------------------------')
 
 
 
@@ -554,6 +566,7 @@ function nql:qLearnMinibatch()
     table.insert(s_pairs, {s_reshaped[{{},{3}}],s_reshaped[{{},{4}}]})
 
     for k,s_pair in pairs(s_pairs) do
+        print('pair '..k..' ++++++++++++++++++++++++++++++++')
         -- zero grad params before rmsprop
         self.enc_dw:fill(0.4)
         self.p_dec_dw:fill(0.4)
@@ -567,6 +580,7 @@ function nql:qLearnMinibatch()
         -- print self.enc_dw here
         print('autoencoder enc gp')
         print(self.enc_dw:norm())
+        print('+++++++++++++++++++++++++++++++++++++++')
     end
 
     -- here we do updates on learning_rate if needed
@@ -581,24 +595,25 @@ function nql:qLearnMinibatch()
         end
     end
 
-
-    print('after')
-    print('self.network.modules[1]')
-    print(({self.network.modules[1]:parameters()})[1][1]:mean())
-    print(({self.network.modules[1]:parameters()})[2][1]:mean())
-    print('self.enc')
-    print(({self.enc:parameters()})[1][1]:mean())
-    print(({self.enc:parameters()})[2][1]:mean())
-    print('self.pred_net.modules[1]')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean())
-    print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean())
-    print('self.p_enc')
-    print(({self.p_enc.modules[1]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[1]:parameters()})[2][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[1][1]:mean())
-    print(({self.p_enc.modules[2]:parameters()})[2][1]:mean())
+    -- print('-------------------------------------------------------------------')
+    -- print('after rmsprop')
+    -- print('self.network.modules[1]')
+    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
+    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
+    -- print('self.enc')
+    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
+    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
+    -- print('self.pred_net.modules[1]')
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
+    -- print('self.p_enc')
+    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
+    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
+    -- print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
 
 
     assert(false)
@@ -716,12 +731,32 @@ function nql:feval(x, input)
     ------------------- forward pass -------------------
     self.pred_net:training() -- make sure we are in correct mode
 
+
+    print(self.pred_net)
+
+    self.enc_dw:fill(0.0)
+    self.dec_dw:fill(0.0)
+    self.p_dec_dw:fill(0.0)
+
+    -- input = {
+    --     torch.ones(32, 1, 84, 84):cuda(),
+    --     torch.ones(32, 1, 84, 84):cuda(),
+    -- }
+
     local output = self.pred_net:forward(input)
     local loss = self.pred_criterion:forward(output, input[2])
     local grad_output = self.pred_criterion:backward(output, input[2]):clone()
 
     print('grad output')
-    print(grad_output:size())
+    print(grad_output:norm())
+    print('output - target')
+    print((output - input[2]):norm())
+
+
+    -- grad_output:fill(1000)
+
+    print('grad output')
+    print(grad_output:norm())
 
     -- self.pred_net:backward(input, grad_output)
 
@@ -730,25 +765,63 @@ function nql:feval(x, input)
     -- self.p_enc:backward(input,gradZ)
     -- this mutates  self.p_dec_dw and does NOT mutate self.enc_dw
 
+    --
+    -- print('fill')
+    -- self.enc_dw:fill(0.7)
+    -- self.dec_dw:fill(0.7)
+    -- self.p_dec_dw:fill(0.7)
+    -- print('enc_dw and p_dec_dw mean before')
+    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
+    -- print(self.dec_dw:mean()..'\tdec gp')  -- dec gp
+    -- print(self.p_dec_dw:mean()..'\tauto dec gp')  -- auto dec gp
+    --
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:add(7))
+    -- print({self.pred_net.modules[1].modules[1]:parameters()})
+    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
+    --
+    -- print('BBBBBBBB')
+    -- self.enc_dw:add(1)
+    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
+    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
+    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
+    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
+    -- print('BBBBBBBBB')
+
+
+
+
+
+
     -- or
     local enc_dw_clone = self.enc_dw:clone()
     print('before backward')
     print(enc_dw_clone:norm())
     print('in pred net')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())
-    print(({self.pred_net:parameters()})[2][1]:norm())
-    print('enc_dw and p_dec_dw before')
-    print(self.enc_dw:mean())  -- this is weird! they don't get updated!
-    print(self.p_dec_dw:mean())  -- this is nan! they don't get updated!
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm()..'\tautoenc enc1 gp')  -- autoenc enc1 gp
+    print(({self.pred_net:parameters()})[2][1]:norm()..'\tautoenc overall gp')  -- autoenc overall gp NOTE also it is weird that this equals the enc gp
+    print(({self.pred_net.modules[2]:parameters()})[2][1]:norm()..'\tautoenc dec gp')  -- autoenc enc1 gp
+
+    print(self.pred_net.modules[1].modules[1].modules[1].gradWeight:norm()..'\tautoenc enc1 conv1 gradWeight')
+    -- print(self.pred_net.gradWeight:norm()..'\tautoenc overall gradWeight')
+    print(self.pred_net.modules[2].modules[2].gradWeight:norm()..'\tautoenc dec linear gradWeight')
+
+
+    print('enc_dw and p_dec_dw before backward')
+    print(self.enc_dw:norm()..'\tenc gp')
+    print(self.p_dec_dw:norm()..'\tauto dec gp')
+
     self.pred_net:backward(input,grad_output)  -- mutats self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
-    print('enc_dw and p_dec_dw after')
-    print(self.enc_dw:mean())  -- this is weird! they don't get updated!
-    print(self.p_dec_dw:mean())  -- this is nan! they don't get updated!
-    print('after backward')
-    print(self.enc_dw:norm())
+
+    newp, newgp = self.pred_net:getParameters()
+    print(newgp:norm(), "new grad params after backward")
+
+    print('enc_dw and p_dec_dw after backward')
+    print(self.enc_dw:norm()..'\tenc gp')  -- this is weird! they don't get updated!
+    print(self.p_dec_dw:norm()..'\tauto dec gp')  -- this is nan! they don't get updated!
     print('in pred net')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())   -- NOTE They don't even get updated in the actual network?
-    print(({self.pred_net:parameters()})[2][1]:norm())
+    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm()..'\tautoenc enc1 gp')   -- autoenc enc1 gp -- NOTE They don't even get updated in the actual network?
+    print(({self.pred_net:parameters()})[2][1]:norm()..'\tautoenc overall gp')  -- autoenc overall gp
     self.enc_dw:mul(self.p_lambda)
 
     -- okay, so you can copy self.pred_net:parameters() and then pass that
@@ -1004,11 +1077,11 @@ end
 
 
 function nql:report()
-    print('self.enc')
+    print('self.enc dw')
     print(self.enc_dw:norm())
-    print('self.dec')
+    print('self.dec dw')
     print(self.dec_dw:norm())
-    print('self.p_dec')
+    print('self.p_dec dw')
     print(self.p_dec_dw:norm())
     print('overall')
     print(get_weight_norms(self.network))
@@ -1051,7 +1124,7 @@ function nql:rmsprop(opfunc, input, x, config, state)
     -- (1) evaluate f(x) and df/dx
     local fx, dfdx = self:feval(x, input)  -- hardcoded
     print('dfdx')
-    print(dfdx:norm())
+    print(dfdx:mean()..'\t dfdx is for pred net overall')
 
     -- (2) weight decay
     if wd ~= 0 then
