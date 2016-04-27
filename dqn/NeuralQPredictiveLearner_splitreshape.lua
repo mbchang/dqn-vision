@@ -813,8 +813,9 @@ function nql:feval(x, input)
 
     self.pred_net:backward(input,grad_output)  -- mutats self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
 
-    -- newp, newgp = self.pred_net:getParameters()
-    -- print(newgp:norm(), "new grad params after backward")
+    -- NOTE! Backward doesn't work if I don't do this!
+    newp, newgp = self.pred_net:getParameters()
+    print(newgp:norm(), "new grad params after backward")
 
     print('enc_dw and p_dec_dw after backward')
     print(self.enc_dw:norm()..'\tenc gp')  -- this is weird! they don't get updated!
