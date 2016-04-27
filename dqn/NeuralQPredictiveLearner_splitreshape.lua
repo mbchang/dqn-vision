@@ -4,6 +4,7 @@ Copyright (c) 2014 Google Inc.
 See LICENSE file for full terms of limited license.
 ]]
 
+
 local optnet = require 'optnet'
 -- require 'rmsprop'
 require 'MotionBCECriterion'
@@ -64,7 +65,6 @@ function nql:__init(args)
 
     self.ncols          = args.ncols or 1  -- number of color channels in input
     self.input_dims     = args.input_dims or {self.hist_len*self.ncols, 84, 84}  -- this incorporates hist_len!
-    -- self.input_dims     = args.input_dims or {self.hist_len,3, 210, 160}  -- this incorporates hist_len!  -- TODO
     self.preproc        = args.preproc  -- name of preprocessing network
     self.histType       = args.histType or "linear"  -- history type to use
     self.histSpacing    = args.histSpacing or 1
@@ -75,7 +75,6 @@ function nql:__init(args)
 
     -- this is just the filename
     self.network    = args.network or self:createNetwork() -- args.network is loaded by run_gpu as the convnet_atari3
-    -- self.fix_pre_encoder = false
 
     -- check whether there is a network file
     local network_function
@@ -108,7 +107,7 @@ function nql:__init(args)
     self.p_motion_scale = 3
     self.p_grad_clip = 3
     self.p_L2 = 0
-    self.p_learning_rate = 0.1
+    self.p_learning_rate = 0.1  -- TODO CHANGE ME
     self.p_learning_rate_decay = 0.97
     self.p_learning_rate_decay_interval = 4000
     self.p_learning_rate_decay_after = 18000
@@ -221,134 +220,26 @@ function nql:__init(args)
 
     -- share encoder params, not decoder params
     -- p_enc has a ParallelTable
-    -- self.enc has a reshape first
     self.p_enc.modules[1]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')
     self.p_enc.modules[2]:share(self.enc,
                 'weight', 'bias', 'gradWeight', 'gradBias')
 
-    -- here do debugging stuff
-    print('orig')
-
-    -- print('self.network.modules[1]')
-    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
-    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
-    -- print('self.enc')
-    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
-    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
-    -- print('self.pred_net.modules[1]')
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
-    -- print('self.p_enc')
-    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
-    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
-    --
-    -- print('fill')
-    -- self.enc_dw:fill(0.7)
-    -- self.dec_dw:fill(0.7)
-    -- self.p_dec_dw:fill(0.7)
-    -- print('enc_dw and p_dec_dw mean before')
-    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
-    -- print(self.dec_dw:mean()..'\tdec gp')  -- dec gp
-    -- print(self.p_dec_dw:mean()..'\tauto dec gp')  -- auto dec gp
-    --
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:add(7))
-    -- print({self.pred_net.modules[1].modules[1]:parameters()})
-    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
-    --
-    -- print('AAAAAAA')
-    -- self.enc_dw:add(1)
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
-    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
-    -- print('AAAAAAA')
-
-
-
-
-
-    print('after')
-    -- self.enc_w:fill(0.3)
-    -- self.p_dec_w:fill(0.3)
-    -- self.enc_dw:fill(0.7)
-    -- self.p_dec_dw:fill(0.7)
-
-
-    -- fwd/bwd test on autoencoder
-    -- it works if I don't fill it like above, but it doesn't work otherwise!
-    local input = {torch.rand(32,1,84,84):cuda(),torch.rand(32,1,84,84):cuda()}
-    local gradOutput = torch.rand(32,1,84,84):cuda()
-    -- print(input)
-    -- print(gradOutput:size())
-    -- self.pred_net:forward(input)
-    -- self.pred_net:backward(input, gradOutput)
-    -- print('enc_dw and p_dec_dw mean after')
-    -- print(self.enc_dw:mean()..'\tenc gp')  -- they do get updated here
-    -- print(self.p_dec_dw:mean()..'\tauto dec gp')  -- they do get updated here
-    --
-    -- print('self.network.modules[1]')
-    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
-    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
-    -- print('self.enc')
-    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
-    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
-    -- print('self.pred_net.modules[1]')
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
-    -- print('self.p_enc')
-    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
-    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
-    --
-    -- print('whole pred_net')
-    -- -- self.enc_w:fill(0.5)
-    -- -- self.p_dec_w:fill(0.5)
-    -- self.enc_dw:fill(0.2)
-    -- self.p_dec_dw:fill(0.2)
-    -- print('self.pred_net')
-    -- print(({self.pred_net:parameters()})[1][1]:mean()..'\tautoencoder p')  -- autoencoder p
-    -- print(({self.pred_net:parameters()})[2][1]:mean()..'\tautoencoder gp')  -- autoencoder gp
-
-
-    -- works up to here
-    -- assert(false)
-
-
-
-
-
-
-
-    -- TODO: This is real code! Uncomment me!
-
     -- -- encoder (shared)
     self.enc_dw:zero()
-    --
     self.enc_deltas = self.enc_dw:clone():fill(0)
-
     self.enc_tmp= self.enc_dw:clone():fill(0)
     self.enc_g  = self.enc_dw:clone():fill(0)
     self.enc_g2 = self.enc_dw:clone():fill(0)
-    --
-    -- -- linear dqn
+
+    -- linear dqn
     self.dec_dw:zero()
-    --
     self.dec_deltas = self.dec_dw:clone():fill(0)
-    --
     self.dec_tmp= self.dec_dw:clone():fill(0)
     self.dec_g  = self.dec_dw:clone():fill(0)
     self.dec_g2 = self.dec_dw:clone():fill(0)
-    --
-    -- -- autoencoder decoder
+
+    -- autoencoder decoder
     self.p_dec_dw:zero()
 
     ----------------------------------------------------------------------------
@@ -507,53 +398,6 @@ function nql:qLearnMinibatch()
     self.dec_dw:zero()
     self.p_dec_dw:zero()
 
-    -- get new gradient
-    ---------------------------------------------------------------------------
-    -- Learn the pred_net
-    -- update:
-    --      self.enc_w, self.p_dec_w
-    --      self.enc_dw, self.p_dec_dw
-
-    -- this does a forward and backward on the pred_net.
-    -- this will automatically update the self.enc_w and self.p_dec_w.
-    -- note that the grad params for the self.pred_net are completely different
-    -- from that of self.network
-    -- after this, we will update self.enc_w again, as well as self.dec_w
-
-    -- function feval_controller()
-    --     return loss, controller_grad_params
-    -- end
-    -- function feval_function()
-    --     return loss, function_grad_params
-    -- end
-
-
-
-    -- -- debugging stuff
-    -- print('before rmsprop>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-    -- print('self.network.modules[1]')
-    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
-    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
-    -- print('self.enc')
-    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
-    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
-    -- print('self.pred_net.modules[1]')
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
-    -- print('self.p_enc')
-    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
-    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
-    -- print('-------------------------------------------------------------------')
-
-
-
-
-
-
     -- mutate the scheduler_iteration
     self.predictive_iteration = self.predictive_iteration+1
     self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
@@ -567,20 +411,64 @@ function nql:qLearnMinibatch()
 
     for k,s_pair in pairs(s_pairs) do
         print('pair '..k..' ++++++++++++++++++++++++++++++++')
+
+        local sum1 = 0
+        local sum2 = 0
+        for k,_ in pairs(self.p_enc.modules[1].modules) do
+            if self.p_enc.modules[1].modules[k].weight then
+                sum1 = sum1 +self.p_enc.modules[1].modules[k].weight:sum()
+                sum1 = sum1 +self.p_enc.modules[1].modules[k].bias:sum()
+            end
+        end
+        for k,_ in pairs(self.p_enc.modules[2].modules) do
+            if self.p_enc.modules[2].modules[k].weight then
+                sum2 = sum2 +self.p_enc.modules[2].modules[k].weight:sum()
+                sum2 = sum2 +self.p_enc.modules[2].modules[k].bias:sum()
+            end
+        end
+
+        print('Before updating weights. These should be equal')
+        print(self.enc_w:sum()..'\tself.enc_w:sum()')
+        print(sum1..'\tself.p_enc.modules[1].params:sum()')
+        print(sum2..'\tself.p_enc.modules[2].params:sum()')
+
+
+
         -- zero grad params before rmsprop
-        self.enc_dw:fill(0.4)
-        self.p_dec_dw:fill(0.4)
         local new_params, _ = self:rmsprop(_, s_pair,
                         torch.cat{self.enc_w,self.p_dec_w}, self.optim_state)
-        -- how to update?
-        -- first try this and then see if the controller function rmsprop works
+
         self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
         self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
 
+
+        ---------------------------------------------------------
+        -- debugging
+
+        local sum1 = 0
+        local sum2 = 0
+        for k,_ in pairs(self.p_enc.modules[1].modules) do
+            if self.p_enc.modules[1].modules[k].weight then
+                sum1 = sum1 +self.p_enc.modules[1].modules[k].weight:sum()
+                sum1 = sum1 +self.p_enc.modules[1].modules[k].bias:sum()
+            end
+        end
+        for k,_ in pairs(self.p_enc.modules[2].modules) do
+            if self.p_enc.modules[2].modules[k].weight then
+                sum2 = sum2 +self.p_enc.modules[2].modules[k].weight:sum()
+                sum2 = sum2 +self.p_enc.modules[2].modules[k].bias:sum()
+            end
+        end
+
+        print('After updating weights. These should be equal')
+        print(self.enc_w:sum()..'\tself.enc_w:sum()')
+        print(sum1..'\tself.p_enc.modules[1].params:sum()')
+        print(sum2..'\tself.p_enc.modules[2].params:sum()')
+
         -- print self.enc_dw here
-        print('autoencoder enc gp')
-        print(self.enc_dw:norm())
-        print('+++++++++++++++++++++++++++++++++++++++')
+        -- print('autoencoder enc gp')
+        -- print(self.enc_dw:norm())
+        -- print('+++++++++++++++++++++++++++++++++++++++')
     end
 
     -- here we do updates on learning_rate if needed
@@ -594,27 +482,6 @@ function nql:qLearnMinibatch()
                             .. self.optim_state.learningRate)
         end
     end
-
-    -- print('-------------------------------------------------------------------')
-    -- print('after rmsprop')
-    -- print('self.network.modules[1]')
-    -- print(({self.network.modules[1]:parameters()})[1][1]:mean()..'\tdqn enc p')  -- dqn enc p
-    -- print(({self.network.modules[1]:parameters()})[2][1]:mean()..'\tdqn enc gp')  -- dqn enc gp
-    -- print('self.enc')
-    -- print(({self.enc:parameters()})[1][1]:mean()..'\tenc p')  -- enc p
-    -- print(({self.enc:parameters()})[2][1]:mean()..'\tenc gp')  -- enc gp
-    -- print('self.pred_net.modules[1]')
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p explicit')  -- auto enc1 p explicit
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p explicit')  -- auto enc2 p explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
-    -- print('self.p_enc')
-    -- print(({self.p_enc.modules[1]:parameters()})[1][1]:mean()..'\tauto enc1 p implicit')  -- auto enc1 p implicit
-    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[1][1]:mean()..'\tauto enc2 p implicit')  -- auto enc2 p implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
-    -- print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
-
 
     assert(false)
 
@@ -708,6 +575,7 @@ function nql:qLearnMinibatch()
     collectgarbage()
 end
 
+
 -- feval for full_udcign
 -- do fwd/bwd and return loss, grad_params
 function nql:feval(x, input)
@@ -725,114 +593,99 @@ function nql:feval(x, input)
     --     self.p_dec_w:copy(x[{{self.enc_w:size(1)+1,-1}}])
     -- end
 
-    -- self.enc_dw:zero()  -- TODO: wait, doing a backward on pred_net doesn't mutate this, because enc_dw is for the dqn encoder!
-    -- self.p_dec_dw:zero()
-
     ------------------- forward pass -------------------
     self.pred_net:training() -- make sure we are in correct mode
 
+    self.enc_dw:zero()
+    self.dec_dw:zero()
+    self.p_dec_dw:zero()
 
-    print(self.pred_net)
+    local input = {
+        torch.rand(32,1,84,84):cuda():mul(1000),
+        torch.rand(32,1,84,84):cuda():mul(1000)
+    }
 
-    self.enc_dw:fill(0.0)
-    self.dec_dw:fill(0.0)
-    self.p_dec_dw:fill(0.0)
-
-    -- input = {
-    --     torch.ones(32, 1, 84, 84):cuda(),
-    --     torch.ones(32, 1, 84, 84):cuda(),
-    -- }
+    ----------------------------------------------------------------------------
+    -- debugging
+    local sum1 = 0
+    local sum2 = 0
+    for k,_ in pairs(self.p_enc.modules[1].modules) do
+        if self.p_enc.modules[1].modules[k].weight then
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+        end
+    end
+    for k,_ in pairs(self.p_enc.modules[2].modules) do
+        if self.p_enc.modules[2].modules[k].weight then
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+        end
+    end
+    print('Before fwd/bwd: These should be equal and 0')
+    print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    ----------------------------------------------------------------------------
 
     local output = self.pred_net:forward(input)
     local loss = self.pred_criterion:forward(output, input[2])
     local grad_output = self.pred_criterion:backward(output, input[2]):clone()
-
-    print('grad output')
-    print(grad_output:norm())
-    print('output - target')
-    print((output - input[2]):norm())
-
-
-    -- grad_output:fill(1000)
-
-    print('grad output')
-    print(grad_output:norm())
-
-    -- self.pred_net:backward(input, grad_output)
-
-    -- local gradZ = self.p_dec:backward(self.p_enc.output, grad_output)  -- TODO: you need to give this a name in order to get an output!
-    -- gradZ:mul(self.p_lambda)  -- scale gradient at Z
-    -- self.p_enc:backward(input,gradZ)
-    -- this mutates  self.p_dec_dw and does NOT mutate self.enc_dw
-
-    --
-    -- print('fill')
-    -- self.enc_dw:fill(0.7)
-    -- self.dec_dw:fill(0.7)
-    -- self.p_dec_dw:fill(0.7)
-    -- print('enc_dw and p_dec_dw mean before')
-    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
-    -- print(self.dec_dw:mean()..'\tdec gp')  -- dec gp
-    -- print(self.p_dec_dw:mean()..'\tauto dec gp')  -- auto dec gp
-    --
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm())
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:add(7))
-    -- print({self.pred_net.modules[1].modules[1]:parameters()})
-    -- print(self.enc_dw:mean()..'\tenc gp')  -- enc gp
-    --
-    -- print('BBBBBBBB')
-    -- self.enc_dw:add(1)
-    -- print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp explicit')  -- auto enc1 gp explicit
-    -- print(({self.pred_net.modules[1].modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp explicit')  -- auto enc2 gp explicit
-    -- print(({self.p_enc.modules[1]:parameters()})[2][1]:mean()..'\tauto enc1 gp implicit')  -- auto enc1 gp implicit
-    -- print(({self.p_enc.modules[2]:parameters()})[2][1]:mean()..'\tauto enc2 gp implicit')  -- auto enc2 gp implicit
-    -- print('BBBBBBBBB')
-
-
-
-
-
-
-    -- or
-    local enc_dw_clone = self.enc_dw:clone()
-    print('before backward')
-    print(enc_dw_clone:norm())
-    print('in pred net')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm()..'\tautoenc enc1 gp')  -- autoenc enc1 gp
-    print(({self.pred_net:parameters()})[2][1]:norm()..'\tautoenc overall gp')  -- autoenc overall gp NOTE also it is weird that this equals the enc gp
-    print(({self.pred_net.modules[2]:parameters()})[2][1]:norm()..'\tautoenc dec gp')  -- autoenc enc1 gp
-
-    print(self.pred_net.modules[1].modules[1].modules[1].gradWeight:norm()..'\tautoenc enc1 conv1 gradWeight')
-    -- print(self.pred_net.gradWeight:norm()..'\tautoenc overall gradWeight')
-    print(self.pred_net.modules[2].modules[2].gradWeight:norm()..'\tautoenc dec linear gradWeight')
-
-
-    print('enc_dw and p_dec_dw before backward')
-    print(self.enc_dw:norm()..'\tenc gp')
-    print(self.p_dec_dw:norm()..'\tauto dec gp')
-
-    self.pred_net:backward(input,grad_output)  -- mutats self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
+    self.pred_net:backward(input,grad_output)  -- mutates self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
 
     -- NOTE! Backward doesn't work if I don't do this!
-    newp, newgp = self.pred_net:getParameters()
-    print(newgp:norm(), "new grad params after backward")
+    -- newp, newgp = self.pred_net:getParameters()  -- this particular line is the problem
+    -- newp, newgp = self.p_enc.modules[1]:getParameters()  -- this particular line is the problem
+    -- print(newgp:sum(), "new grad params after backward")
 
-    print('enc_dw and p_dec_dw after backward')
-    print(self.enc_dw:norm()..'\tenc gp')  -- this is weird! they don't get updated!
-    print(self.p_dec_dw:norm()..'\tauto dec gp')  -- this is nan! they don't get updated!
-    print('in pred net')
-    print(({self.pred_net.modules[1].modules[1]:parameters()})[2][1]:norm()..'\tautoenc enc1 gp')   -- autoenc enc1 gp -- NOTE They don't even get updated in the actual network?
-    print(({self.pred_net:parameters()})[2][1]:norm()..'\tautoenc overall gp')  -- autoenc overall gp
+    ----------------------------------------------------------------------------
+    local sum1 = 0
+    local sum2 = 0
+    for k,_ in pairs(self.p_enc.modules[1].modules) do
+        if self.p_enc.modules[1].modules[k].weight then
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+        end
+    end
+    for k,_ in pairs(self.p_enc.modules[2].modules) do
+        if self.p_enc.modules[2].modules[k].weight then
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+        end
+    end
+    print('After fwd/bwd: These should be equal and nonzero')
+    print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    ----------------------------------------------------------------------------
+
     self.enc_dw:mul(self.p_lambda)
 
-    -- okay, so you can copy self.pred_net:parameters() and then pass that
-    -- to rmsprop and then copy that value over?
+    ----------------------------------------------------------------------------
 
-    -- TODO: what I can do is to make sure I zero out the grad_params before
-    -- each backward, and just make both encoders share grad_params too.
+    local sum1 = 0
+    local sum2 = 0
+    for k,_ in pairs(self.p_enc.modules[1].modules) do
+        if self.p_enc.modules[1].modules[k].weight then
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+        end
+    end
+    for k,_ in pairs(self.p_enc.modules[2].modules) do
+        if self.p_enc.modules[2].modules[k].weight then
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+        end
+    end
+    print('After multiply by lambda: These should be equal and nonzero')
+    print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+
+    ----------------------------------------------------------------------------
 
     ------------------ regularize -------------------
     if self.p_L2 > 0 then
+        print('regularize')
         -- Loss:
         loss = loss + self.p_L2 *
                             torch.cat{self.enc_w, self.p_dec_w}:norm(2)^2/2
@@ -843,9 +696,30 @@ function nql:feval(x, input)
         self.p_dec_dw:add( self.p_dec_w:clone():mul(opt.L2) )
     end
 
-    -- TODO: not sure if this clamp works
     self.enc_dw:clamp(-self.p_grad_clip, self.p_grad_clip)
     self.p_dec_dw:clamp(-self.p_grad_clip, self.p_grad_clip)
+
+    ----------------------------------------------------------------------------
+    local sum1 = 0
+    local sum2 = 0
+    for k,_ in pairs(self.p_enc.modules[1].modules) do
+        if self.p_enc.modules[1].modules[k].weight then
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+        end
+    end
+    for k,_ in pairs(self.p_enc.modules[2].modules) do
+        if self.p_enc.modules[2].modules[k].weight then
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+        end
+    end
+    print('After clamp: These should be equal and nonzero')
+    print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    ----------------------------------------------------------------------------
+
 
     collectgarbage()
     -- torch.cat{self.enc_dw,self.p_dec_dw} is supposed to be the grad_params
@@ -1124,8 +998,6 @@ function nql:rmsprop(opfunc, input, x, config, state)
 
     -- (1) evaluate f(x) and df/dx
     local fx, dfdx = self:feval(x, input)  -- hardcoded
-    print('dfdx')
-    print(dfdx:mean()..'\t dfdx is for pred net overall')
 
     -- (2) weight decay
     if wd ~= 0 then
