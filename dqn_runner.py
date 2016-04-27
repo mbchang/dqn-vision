@@ -6,9 +6,6 @@ dry_run = '--dry-run' in sys.argv
 local   = '--local' in sys.argv
 detach  = '--detach' in sys.argv
 
-# local = True
-# dry_run = True
-# detatch = True
 
 if not os.path.exists("slurm_logs"):
     os.makedirs("slurm_logs")
