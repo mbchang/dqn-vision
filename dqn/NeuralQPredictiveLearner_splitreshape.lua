@@ -412,58 +412,61 @@ function nql:qLearnMinibatch()
     for k,s_pair in pairs(s_pairs) do
         print('pair '..k..' ++++++++++++++++++++++++++++++++')
 
-        local sum1 = 0
-        local sum2 = 0
-        for k,_ in pairs(self.p_enc.modules[1].modules) do
-            if self.p_enc.modules[1].modules[k].weight then
-                sum1 = sum1 +self.p_enc.modules[1].modules[k].weight:sum()
-                sum1 = sum1 +self.p_enc.modules[1].modules[k].bias:sum()
-            end
-        end
-        for k,_ in pairs(self.p_enc.modules[2].modules) do
-            if self.p_enc.modules[2].modules[k].weight then
-                sum2 = sum2 +self.p_enc.modules[2].modules[k].weight:sum()
-                sum2 = sum2 +self.p_enc.modules[2].modules[k].bias:sum()
-            end
-        end
-
-        print('Before updating weights. These should be equal')
-        print(self.enc_w:sum()..'\tself.enc_w:sum()')
-        print(sum1..'\tself.p_enc.modules[1].params:sum()')
-        print(sum2..'\tself.p_enc.modules[2].params:sum()')
-
+        -- local sum1 = 0
+        -- local sum2 = 0
+        -- for k,_ in pairs(self.p_enc.modules[1].modules) do
+        --     if self.p_enc.modules[1].modules[k].weight then
+        --         sum1 = sum1 +self.p_enc.modules[1].modules[k].weight:sum()
+        --         sum1 = sum1 +self.p_enc.modules[1].modules[k].bias:sum()
+        --     end
+        -- end
+        -- for k,_ in pairs(self.p_enc.modules[2].modules) do
+        --     if self.p_enc.modules[2].modules[k].weight then
+        --         sum2 = sum2 +self.p_enc.modules[2].modules[k].weight:sum()
+        --         sum2 = sum2 +self.p_enc.modules[2].modules[k].bias:sum()
+        --     end
+        -- end
+        --
+        -- print('Before updating weights. These should be equal')
+        -- print(self.enc_w:sum()..'\tself.enc_w:sum()')
+        -- print(sum1..'\tself.p_enc.modules[1].params:sum()')
+        -- print(sum2..'\tself.p_enc.modules[2].params:sum()')
+        --
 
 
         -- zero grad params before rmsprop
+        -- self:feval()
         local new_params, _ = self:rmsprop(_, s_pair,
                         torch.cat{self.enc_w,self.p_dec_w}, self.optim_state)
 
+
+        -- HEY! HERE'S THE ISSUE!
         self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
         self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
-
+        error("I'm a problem")
 
         ---------------------------------------------------------
         -- debugging
 
-        local sum1 = 0
-        local sum2 = 0
-        for k,_ in pairs(self.p_enc.modules[1].modules) do
-            if self.p_enc.modules[1].modules[k].weight then
-                sum1 = sum1 +self.p_enc.modules[1].modules[k].weight:sum()
-                sum1 = sum1 +self.p_enc.modules[1].modules[k].bias:sum()
-            end
-        end
-        for k,_ in pairs(self.p_enc.modules[2].modules) do
-            if self.p_enc.modules[2].modules[k].weight then
-                sum2 = sum2 +self.p_enc.modules[2].modules[k].weight:sum()
-                sum2 = sum2 +self.p_enc.modules[2].modules[k].bias:sum()
-            end
-        end
-
-        print('After updating weights. These should be equal')
-        print(self.enc_w:sum()..'\tself.enc_w:sum()')
-        print(sum1..'\tself.p_enc.modules[1].params:sum()')
-        print(sum2..'\tself.p_enc.modules[2].params:sum()')
+        -- local sum1 = 0
+        -- local sum2 = 0
+        -- for k,_ in pairs(self.p_enc.modules[1].modules) do
+        --     if self.p_enc.modules[1].modules[k].weight then
+        --         sum1 = sum1 +self.p_enc.modules[1].modules[k].weight:sum()
+        --         sum1 = sum1 +self.p_enc.modules[1].modules[k].bias:sum()
+        --     end
+        -- end
+        -- for k,_ in pairs(self.p_enc.modules[2].modules) do
+        --     if self.p_enc.modules[2].modules[k].weight then
+        --         sum2 = sum2 +self.p_enc.modules[2].modules[k].weight:sum()
+        --         sum2 = sum2 +self.p_enc.modules[2].modules[k].bias:sum()
+        --     end
+        -- end
+        --
+        -- print('After updating weights. These should be equal')
+        -- print(self.enc_w:sum()..'\tself.enc_w:sum()')
+        -- print(sum1..'\tself.p_enc.modules[1].params:sum()')
+        -- print(sum2..'\tself.p_enc.modules[2].params:sum()')
 
         -- print self.enc_dw here
         -- print('autoencoder enc gp')
@@ -472,114 +475,25 @@ function nql:qLearnMinibatch()
     end
 
     -- here we do updates on learning_rate if needed
-    if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
-                                        and self.p_learning_rate_decay < 1 then
-        if self.predictive_iteration >= self.p_learning_rate_decay_after then
-            self.optim_state.learningRate = self.optim_state.learningRate
-                                                    * self.p_learning_rate_decay
-            print('decayed function learning rate by a factor ' ..
-                            self.p_learning_rate_decay .. ' to '
-                            .. self.optim_state.learningRate)
-        end
-    end
-
-    assert(false)
-
-
-    -- at this point, self.enc_w and self.p_dec_w have been updated
-    ---------------------------------------------------------------------------
-
-    if udcign_reshape then
-        s = s:resize(s:nElement()/84/84,1,84,84)
-    end
-
-    -- zero gradients of parameters before updating dqn
-    self.enc_dw:zero()
-    self.dec_dw:zero()
-
-    -- if fix_pre_encoder then
-    --     self.dec:backward(self.enc.output, targets)
-    -- else
-    --     self.network:backward(s, targets)
+    -- if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
+    --                                     and self.p_learning_rate_decay < 1 then
+    --     if self.predictive_iteration >= self.p_learning_rate_decay_after then
+    --         self.optim_state.learningRate = self.optim_state.learningRate
+    --                                                 * self.p_learning_rate_decay
+    --         print('decayed function learning rate by a factor ' ..
+    --                         self.p_learning_rate_decay .. ' to '
+    --                         .. self.optim_state.learningRate)
+    --     end
     -- end
 
-    if fix_pre_encoder then
-        print('fix pre encoder')
-        if udcign_reshape then
-            local bsize = s:nElement()/84/84/4
-            local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
-            self.network.modules[2]:backward(encout,targets)
-        else
-            self.network.modules[2]:backward(self.network.modules[1].output,
-                                        targets)
-        end
-    else
-        -- self.network:backward(s, targets)
-        print('no fix pre encoder')
-        if udcign_reshape then
-            local bsize = s:nElement()/84/84/4
-            local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
-            local grad_encout = self.network.modules[2]:backward(encout,targets)
-            grad_encout = grad_encout:reshape(bsize*4,200)
-            self.network.modules[1]:backward(s,grad_encout)
-        else
-            self.network:backward(s, targets)
-        end
-    end
-
-    -- print self.enc_dw here
-    print('dqn enc gp')
-    print(self.enc_dw:norm())
-
-    -- add weight cost to gradient
-    self.enc_dw:add(-self.wc, self.enc_w)
-    self.dec_dw:add(-self.wc, self.dec_w)
-
-    -- compute linearly annealed learning rate
-    local t = math.max(0, self.numSteps - self.learn_start)
-    self.lr = (self.lr_start - self.lr_end) * (self.lr_endt - t)/self.lr_endt +
-                self.lr_end
-    self.lr = math.max(self.lr, self.lr_end)
-
-    -- use gradients
-    self.enc_g:mul(0.95):add(0.05, self.enc_dw)
-    self.enc_tmp:cmul(self.enc_dw, self.enc_dw)
-    self.enc_g2:mul(0.95):add(0.05, self.enc_tmp)
-    self.enc_tmp:cmul(self.enc_g, self.enc_g)
-    self.enc_tmp:mul(-1)
-    self.enc_tmp:add(self.enc_g2)
-    self.enc_tmp:add(0.01)
-    self.enc_tmp:sqrt()
-
-    self.dec_g:mul(0.95):add(0.05, self.dec_dw)
-    self.dec_tmp:cmul(self.dec_dw, self.dec_dw)
-    self.dec_g2:mul(0.95):add(0.05, self.dec_tmp)
-    self.dec_tmp:cmul(self.dec_g, self.dec_g)
-    self.dec_tmp:mul(-1)
-    self.dec_tmp:add(self.dec_g2)
-    self.dec_tmp:add(0.01)
-    self.dec_tmp:sqrt()
-
-    -- accumulate update
-    self.enc_deltas:mul(0):addcdiv(self.lr, self.enc_dw, self.enc_tmp)
-    self.enc_w:add(self.enc_deltas)
-
-    self.dec_deltas:mul(0):addcdiv(self.lr, self.dec_dw, self.dec_tmp)
-    self.dec_w:add(self.dec_deltas)
-
-    if self.gpu and self.gpu >= 0 then
-        cutorch.synchronize()
-    end
-    collectgarbage()
+    assert(false)
 end
 
 
 -- feval for full_udcign
 -- do fwd/bwd and return loss, grad_params
-function nql:feval(x, input)
-    assert(x:size(1) == self.enc_w:size(1) + self.p_dec_w:size(1))
+function nql:feval()
+    -- assert(x:size(1) == self.enc_w:size(1) + self.p_dec_w:size(1))
     -- if x[{{1,self.enc_w:size(1)}}] ~= self.enc_w then
     --     print(x[{{1,self.enc_w:size(1)}}]:norm())
     --     print(self.enc_w:norm())
@@ -605,7 +519,24 @@ function nql:feval(x, input)
         torch.rand(32,1,84,84):cuda():mul(1000)
     }
 
-    ----------------------------------------------------------------------------
+    print('before fwd/bwd')
+    print(self.enc_dw:sum(), 'enc_dw:sum()')
+    print(self.dec_dw:sum(), 'dec_dw:sum()')
+    print(self.p_dec_dw:sum(), 'p_dec_dw:sum()')
+
+    local output = self.pred_net:forward(input)
+    local loss = self.pred_criterion:forward(output, input[2])
+    local grad_output = self.pred_criterion:backward(output, input[2]):clone()
+    self.pred_net:backward(input,grad_output)
+
+    print('after fwd/bwd')
+    print(self.enc_dw:sum(), 'enc_dw:sum()')
+    print(self.dec_dw:sum(), 'dec_dw:sum()')
+    print(self.p_dec_dw:sum(), 'p_dec_dw:sum()')
+
+    -- error("Done doing crap")
+
+    -- ----------------------------------------------------------------------------
     -- debugging
     local sum1 = 0
     local sum2 = 0
@@ -625,19 +556,19 @@ function nql:feval(x, input)
     print(self.enc_dw:sum()..'\tenc_dw:sum()')
     print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
     print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
-    ----------------------------------------------------------------------------
-
-    local output = self.pred_net:forward(input)
-    local loss = self.pred_criterion:forward(output, input[2])
-    local grad_output = self.pred_criterion:backward(output, input[2]):clone()
-    self.pred_net:backward(input,grad_output)  -- mutates self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
-
-    -- NOTE! Backward doesn't work if I don't do this!
-    -- newp, newgp = self.pred_net:getParameters()  -- this particular line is the problem
-    -- newp, newgp = self.p_enc.modules[1]:getParameters()  -- this particular line is the problem
-    -- print(newgp:sum(), "new grad params after backward")
-
-    ----------------------------------------------------------------------------
+    -- ----------------------------------------------------------------------------
+    --
+    -- local output = self.pred_net:forward(input)
+    -- local loss = self.pred_criterion:forward(output, input[2])
+    -- local grad_output = self.pred_criterion:backward(output, input[2]):clone()
+    -- self.pred_net:backward(input,grad_output)  -- mutates self.enc_dw -- TODO: this doesn't work! the backward function doesn't work?
+    --
+    -- -- NOTE! Backward doesn't work if I don't do this!
+    -- -- newp, newgp = self.pred_net:getParameters()  -- this particular line is the problem
+    -- -- newp, newgp = self.p_enc.modules[1]:getParameters()  -- this particular line is the problem
+    -- -- print(newgp:sum(), "new grad params after backward")
+    --
+    -- ----------------------------------------------------------------------------
     local sum1 = 0
     local sum2 = 0
     for k,_ in pairs(self.p_enc.modules[1].modules) do
@@ -726,115 +657,55 @@ function nql:feval(x, input)
     -- however it gets assigned to a local variable in rmsprop, so we don't
     -- have to worry about dereferencing here
     return loss, torch.cat{self.enc_dw,self.p_dec_dw}
-end
-
-
-
-function nql:sample_validation_data()
-    local s, a, r, s2, term = self.transitions:sample(self.valid_size)
-
-    -- michael added this
-    if self.gpu and self.gpu >= 0 then
-        cutorch.synchronize()
-    end
-    collectgarbage()
-
-    -- so, is it necessary to clone these things?
-    self.valid_s    = s:clone()
-    self.valid_a    = a:clone()
-    self.valid_r    = r:clone()
-    self.valid_s2   = s2:clone() -- cuda runtime error because of memory
-    self.valid_term = term:clone()
-end
-
-
-function nql:compute_validation_statistics(split)
-    if not split then
-        local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
-            a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
-        self.v_avg = self.q_max * q2_max:mean()
-        self.tderr_avg = delta:clone():abs():mean() -- note that :abs() mutates!
-    else
-        print('split')
-        -- do a for loop to do this iteratively
-        assert(self.valid_size % 10 == 0)
-        local sub_valid_size = self.valid_size/10
-        local q2_max_sum = 0 -- change this to a torch tensor of 0s  the same size as delta
-        local delta_sum = 0  -- change this to a torch tensor of 0s  the same size as delta
-
-        -- delta = (valid_size x 1)
-        -- q2_max_sum = (valid_size)
-        --
-        for i = 1,self.valid_size,sub_valid_size do
-            local _ , delta, q2_max = self:getQUpdate{
-                        s=self.valid_s[{{i,i+sub_valid_size-1}}],
-                        a=self.valid_a[{{i,i+sub_valid_size-1}}],
-                        r=self.valid_r[{{i,i+sub_valid_size-1}}],
-                        s2=self.valid_s2[{{i,i+sub_valid_size-1}}],
-                        term=self.valid_term[{{i,i+sub_valid_size-1}}]}
-            q2_max_sum = q2_max_sum + q2_max:sum()
-            delta_sum = delta_sum + delta:clone():abs():sum()
-            collectgarbage()
-        end
-
-        self.v_avg = self.q_max * q2_max_sum/self.valid_size
-        self.tderr_avg = delta_sum/self.valid_size
-    end
+    -- return 0
 end
 
 
 function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
-    -- Preprocess state (will be set to nil if terminal)
-    local state = self:preprocess(rawstate):float()  -- TODO: THIS IS PREPROCESS
-
+    local state = self:preprocess(rawstate):float()
     local curState
 
     if self.max_reward then
-        reward = math.min(reward, self.max_reward)
+       reward = math.min(reward, self.max_reward)
     end
     if self.min_reward then
-        reward = math.max(reward, self.min_reward)
+       reward = math.max(reward, self.min_reward)
     end
     if self.rescale_r then
-        self.r_max = math.max(self.r_max, reward)
+       self.r_max = math.max(self.r_max, reward)
     end
 
     self.transitions:add_recent_state(state, terminal)
 
-    local currentFullState = self.transitions:get_recent()
+    self.transitions:get_recent()
 
     --Store transition s, a, r, s'
     if self.lastState and not testing then
-        self.transitions:add(self.lastState, self.lastAction, reward,
-                             self.lastTerminal, priority)
-    end
-
-    if self.numSteps == self.learn_start+1 and not testing then
-         -- we do stuff on validation data instead here
-        self:sample_validation_data()
+       self.transitions:add(self.lastState, self.lastAction, reward,
+                            self.lastTerminal, priority)
     end
 
     curState= self.transitions:get_recent()
-    curState = curState:resize(1, unpack(self.input_dims))  -- fix this! You have to change input_dims
+    curState = curState:resize(1, unpack(self.input_dims))
 
     -- Select action
     local actionIndex = 1
     if not terminal then
-        actionIndex = self:eGreedy(curState, testing_ep)
+       actionIndex = 1
     end
 
     self.transitions:add_recent_action(actionIndex)
 
     --Do some Q-learning updates
     if self.numSteps > self.learn_start and not testing and
-        self.numSteps % self.update_freq == 0 then
-        for i = 1, self.n_replay do
-            self:qLearnMinibatch() -- do this once each time we perceive
-        end
+       self.numSteps % self.update_freq == 0 then
+       for i = 1, self.n_replay do
+           self:qLearnMinibatch()
+       end
     end
 
     if not testing then
-        self.numSteps = self.numSteps + 1
+       self.numSteps = self.numSteps + 1
     end
 
     self.lastState = state:clone()
@@ -842,78 +713,14 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     self.lastTerminal = terminal
 
     if self.target_q and self.numSteps % self.target_q == 1 then
-        self.network:clearState()
-        self.target_network = self.network:clone()
+       self.target_network = self.network:clone()
     end
-
-    if self.gpu and self.gpu >= 0 then
-        cutorch.synchronize()
-    end
-    collectgarbage()
 
     if not terminal then
-        return actionIndex
+       return actionIndex
     else
-        return 0
+       return 0
     end
-end
-
-
-function nql:eGreedy(state, testing_ep)
-    self.ep = testing_ep or (self.ep_end +
-                math.max(0, (self.ep_start - self.ep_end) * (self.ep_endt -
-                math.max(0, self.numSteps - self.learn_start))/self.ep_endt))
-    -- Epsilon greedy
-    if torch.uniform() < self.ep then
-        return torch.random(1, self.n_actions)
-    else
-        return self:greedy(state)
-    end
-end
-
-
-function nql:greedy(state)
-    -- Turn single state into minibatch.  Needed for convolutional nets.
-    if state:dim() == 2 then
-        assert(false, 'Input must be at least 3D')
-        state = state:resize(1, state:size(1), state:size(2))
-    end
-
-    if self.gpu >= 0 then
-        state = state:cuda()
-    end
-
-    -- local q = self.network:forward(state):float():squeeze()
-    local q
-    if udcign_reshape then
-        state = state:resize(state:nElement()/84/84,1,84,84) -- hardcoded
-        local bsize = state:nElement()/84/84/4
-        local encout = self.network.modules[1]:forward(state)
-        encout = encout:reshape(bsize,800) -- hardcoded
-        q = self.network.modules[2]:forward(encout):float():squeeze()
-    else
-        q = self.network:forward(state):float():squeeze()
-    end
-
-    local maxq = q[1]
-    local besta = {1}
-
-    -- Evaluate all other actions (with random tie-breaking)
-    for a = 2, self.n_actions do
-        if q[a] > maxq then
-            besta = { a }
-            maxq = q[a]
-        elseif q[a] == maxq then
-            besta[#besta+1] = a
-        end
-    end
-    self.bestq = maxq
-
-    local r = torch.random(1, #besta)
-
-    self.lastAction = besta[r]
-
-    return besta[r]
 end
 
 
@@ -930,16 +737,16 @@ function nql:createNetwork()
     return mlp
 end
 
-
-function nql:_loadNet()
-    local net = self.network
-    if self.gpu then
-        net:cuda()
-    else
-        net:float()
-    end
-    return net
-end
+--
+-- function nql:_loadNet()
+--     local net = self.network
+--     if self.gpu then
+--         net:cuda()
+--     else
+--         net:float()
+--     end
+--     return net
+-- end
 
 
 function nql:init(arg)
@@ -952,15 +759,15 @@ end
 
 
 function nql:report()
-    print('self.enc dw')
-    print(self.enc_dw:norm())
-    print('self.dec dw')
-    print(self.dec_dw:norm())
-    print('self.p_dec dw')
-    print(self.p_dec_dw:norm())
-    print('overall')
-    print(get_weight_norms(self.network))
-    print(get_grad_norms(self.network))
+    -- print('self.enc dw')
+    -- print(self.enc_dw:norm())
+    -- print('self.dec dw')
+    -- print(self.dec_dw:norm())
+    -- print('self.p_dec dw')
+    -- print(self.p_dec_dw:norm())
+    -- print('overall')
+    -- print(get_weight_norms(self.network))
+    -- print(get_grad_norms(self.network))
 end
 
 --------------------------------------------------------------------------------

@@ -55,3 +55,4 @@ echo $args
 cd dqn
 # ../torch/bin/luajit train_agent.lua $args
 th train_agent.lua $args -global_reshape
+

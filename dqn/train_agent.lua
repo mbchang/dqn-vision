@@ -111,85 +111,85 @@ while step < opt.steps do
         end
     end
 
-    if step % opt.prog_freq == 0 then
-        assert(step==agent.numSteps, 'trainer step: ' .. step ..
-                ' & agent.numSteps: ' .. agent.numSteps)
-        print("Steps: ", step)
-        agent:report()
-        collectgarbage()
-    end
+    -- if step % opt.prog_freq == 0 then
+    --     assert(step==agent.numSteps, 'trainer step: ' .. step ..
+    --             ' & agent.numSteps: ' .. agent.numSteps)
+    --     print("Steps: ", step)
+    --     agent:report()
+    --     collectgarbage()
+    -- end
 
     if step%1000 == 0 then collectgarbage() end
 
-    if step % opt.eval_freq == 0 and step > learn_start then
-
-        screen, reward, terminal = game_env:newGame()
-
-        total_reward = 0
-        nrewards = 0
-        nepisodes = 0
-        episode_reward = 0
-
-        local eval_time = sys.clock()
-        for estep=1,opt.eval_steps do
-            local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
-
-            -- Play game in test mode (episodes don't end when losing a life)
-            screen, reward, terminal = game_env:step(game_actions[action_index])
-
-            if estep%1000 == 0 then collectgarbage() end
-
-            -- record every reward
-            episode_reward = episode_reward + reward
-            if reward ~= 0 then
-               nrewards = nrewards + 1
-            end
-
-            if terminal then
-                total_reward = total_reward + episode_reward
-                episode_reward = 0
-                nepisodes = nepisodes + 1
-                screen, reward, terminal = game_env:nextRandomGame()
-            end
-        end
-
-        eval_time = sys.clock() - eval_time
-        start_time = start_time + eval_time
-        agent:compute_validation_statistics(split)
-        local ind = #reward_history+1
-        total_reward = total_reward/math.max(1, nepisodes)
-
-        if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
-            agent.network:clearState()
-            collectgarbage()
-            agent.best_network = agent.network:clone()  -- there may be a problem here (but we just want to clone the weights right?)
-        end
-
-        if agent.v_avg then
-            v_history[ind] = agent.v_avg  -- affected by validation_statistics
-            td_history[ind] = agent.tderr_avg  -- affected by validation_statistics
-            qmax_history[ind] = agent.q_max
-        end
-        print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
-
-        reward_history[ind] = total_reward
-        reward_counts[ind] = nrewards
-        episode_counts[ind] = nepisodes
-
-        time_history[ind+1] = sys.clock() - start_time
-
-        local time_dif = time_history[ind+1] - time_history[ind]
-
-        local training_rate = opt.actrep*opt.eval_freq/time_dif
-
-        print(string.format(
-            '\nSteps: %d (frames: %d), reward: %.2f, epsilon: %.2f, lr: %G, ' ..
-            'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
-            'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
-            step, step*opt.actrep, total_reward, agent.ep, agent.lr, time_dif,
-            training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
-            nepisodes, nrewards))
-    end
+    -- if step % opt.eval_freq == 0 and step > learn_start then
+    --
+    --     screen, reward, terminal = game_env:newGame()
+    --
+    --     total_reward = 0
+    --     nrewards = 0
+    --     nepisodes = 0
+    --     episode_reward = 0
+    --
+    --     local eval_time = sys.clock()
+    --     for estep=1,opt.eval_steps do
+    --         local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
+    --
+    --         -- Play game in test mode (episodes don't end when losing a life)
+    --         screen, reward, terminal = game_env:step(game_actions[action_index])
+    --
+    --         if estep%1000 == 0 then collectgarbage() end
+    --
+    --         -- record every reward
+    --         episode_reward = episode_reward + reward
+    --         if reward ~= 0 then
+    --            nrewards = nrewards + 1
+    --         end
+    --
+    --         if terminal then
+    --             total_reward = total_reward + episode_reward
+    --             episode_reward = 0
+    --             nepisodes = nepisodes + 1
+    --             screen, reward, terminal = game_env:nextRandomGame()
+    --         end
+    --     end
+    --
+    --     eval_time = sys.clock() - eval_time
+    --     start_time = start_time + eval_time
+    --     -- agent:compute_validation_statistics(split)
+    --     local ind = #reward_history+1
+    --     total_reward = total_reward/math.max(1, nepisodes)
+    --
+    --     if #reward_history == 0 or total_reward > torch.Tensor(reward_history):max() then
+    --         agent.network:clearState()
+    --         collectgarbage()
+    --         agent.best_network = agent.network:clone()  -- there may be a problem here (but we just want to clone the weights right?)
+    --     end
+    --
+    --     if agent.v_avg then
+    --         v_history[ind] = agent.v_avg  -- affected by validation_statistics
+    --         td_history[ind] = agent.tderr_avg  -- affected by validation_statistics
+    --         qmax_history[ind] = agent.q_max
+    --     end
+    --     print("V", v_history[ind], "TD error", td_history[ind], "Qmax", qmax_history[ind])
+    --
+    --     reward_history[ind] = total_reward
+    --     reward_counts[ind] = nrewards
+    --     episode_counts[ind] = nepisodes
+    --
+    --     time_history[ind+1] = sys.clock() - start_time
+    --
+    --     local time_dif = time_history[ind+1] - time_history[ind]
+    --
+    --     local training_rate = opt.actrep*opt.eval_freq/time_dif
+    --
+    --     print(string.format(
+    --         '\nSteps: %d (frames: %d), reward: %.2f, epsilon: %.2f, lr: %G, ' ..
+    --         'training time: %ds, training rate: %dfps, testing time: %ds, ' ..
+    --         'testing rate: %dfps,  num. ep.: %d,  num. rewards: %d',
+    --         step, step*opt.actrep, total_reward, agent.ep, agent.lr, time_dif,
+    --         training_rate, eval_time, opt.actrep*opt.eval_steps/eval_time,
+    --         nepisodes, nrewards))
+    -- end
 
     if step % opt.save_freq == 0 or step == opt.steps then
         local s, a, r, s2, term = agent.valid_s, agent.valid_a, agent.valid_r,
