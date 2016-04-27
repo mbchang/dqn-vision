@@ -49,7 +49,7 @@ cmd:option('-global_reshape', false, 'fix encoder weights')
 
 -- global args
 cmd:option('-global_fixweights', false, 'fix encoder weights')
-cmd:option('-global_reshape', false, 'fix encoder weights')
+cmd:option('-global_reshape', false, 'any pretrained encoder that encodes the hist_len images separately')
 
 cmd:text()
 
