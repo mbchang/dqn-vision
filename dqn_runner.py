@@ -1,5 +1,6 @@
 import os
 import sys
+import pprint
 
 dry_run = '--dry-run' in sys.argv
 local   = '--local' in sys.argv
@@ -16,7 +17,6 @@ if not os.path.exists("slurm_scripts"):
     os.makedirs("slurm_scripts")
 
 networks_prefix = "../networks/"
-# networks_suffix = ""
 
 # network (netfile), agent, seed, gpu, agent_params contains network
 # agent_params="network="$netfile" -global_fixweights
@@ -28,35 +28,50 @@ networks_prefix = "../networks/"
 seeds = range(1,3)
 envs = ['breakout','space_invaders']
 agents = ['NeuralQLearner', 'NeuralQLearnerReshape']
-networks = ['\"udcgin_trained_atari3\"', '\"vanilla_trained_atari3\"']
-jobs = []   # seed, env, learn, agent, network
+networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
+
+
+myjobs = []   # seed, env, learn, agent, network
+i = 0
 for seed in seeds:
     for env in envs:
         for agent in agents:
-            job = {'seed':seed,'env':env,'agent':agent}
-            if agent == 'NeuralQLearnerReshape':
+
+            if agent == 'NeuralQLearner':
+                job = {'seed':seed,'env':env,'agent':agent}
+                job['network'] = '\"convnet_atari3\"'
+                myjobs.append(job)
+            else:
                 for network in networks:
                     for learn in [True, False]:
-                        job['learn'] = learn
-                        job['network'] = network
-                        jobs.append(job)
-            elif agent == 'NeuralQLearner':
-                job['network'] = '\"convnet_atari3\"'
-                jobs.append(job)
-            else:
-                assert False,'Unknown agent'
+                        job = {'seed':seed,'env':env,'agent':agent,'network':network,'learn':learn}
+
+                        if env == 'breakout':
+                            if network == '\"vanilla_trained_atari3\"':
+                                pass
+                            elif network == '\"udcign_trained_atari3\"':
+                                pass
+                        elif env == 'space_invaders':
+                            if network == '\"vanilla_trained_atari3\"':
+                                job['pretrained_path'] = '/om/user/wwhitney/unsupervised-dcign/networks/down_motion_scale_3_noise_0.1_heads_3_sharpening_rate_10_gpu_learning_rate_0.0001_model_autoencoder_dataset_name_space_invaders_frame_interval_1/epoch50.00_0.1298.t7'
+                            elif network == '\"udcign_trained_atari3\"':
+                                job['pretrained_path'] = '/om/user/wwhitney/unsupervised-dcign/networks/down_motion_scale_3_noise_0.1_heads_3_sharpening_rate_10_gpu_learning_rate_0.0002_model_disentangled_dataset_name_space_invaders_frame_interval_1/epoch50.00_0.1369.t7'
+
+                        myjobs.append(job)
+
 
 if dry_run:
     print "NOT starting jobs:"
 else:
     print "Starting jobs:"
-
-for job in jobs:
+for job in myjobs:
     assert 'seed' in job
     assert 'env' in job
     assert 'agent' in job
     assert 'network' in job
-    assert len(job) == 4
+    if job['agent'] != 'NeuralQLearner' and job['env'] != 'breakout':
+        assert 'pretrained_path' in job
+        assert 'learn' in job
 
     # create job string
     flagstring = ""
@@ -76,14 +91,14 @@ for job in jobs:
         else:
             flagstring = flagstring + " -" + flag + " " + str(job[flag])
             if flag == 'network':
-                if job[flag] == '\"udcgin_trained_atari3\"':
+                if job[flag] == '\"udcign_trained_atari3\"':
                     jobname += '_disentangled'
                 elif job[flag] == '\"vanilla_trained_atari3\"':
                     jobname += '_vanilla'
                 elif job[flag] == '\"convnet_atari3\"':
                     jobname += '_dqn'
                 else:
-                    assert False, 'unknown netfile'
+                    assert False, 'unknown netfile: ' + job[flag]
             if flag == 'agent':
                 if job[flag] == 'NeuralQLearner':
                     jobname += '_naive'
@@ -97,7 +112,8 @@ for job in jobs:
                 else:
                     assert False,'unknown agent'
             else:
-                jobname = jobname + "_" + flag + "_" + str(job[flag])
+                if flag != 'pretrained_path':
+                    jobname = jobname + "_" + flag + "_" + str(job[flag])
     jobname = jobname[1:]
     flagstring = flagstring[1:]
 

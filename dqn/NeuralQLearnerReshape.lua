@@ -18,7 +18,7 @@ local fix_pre_encoder = global_args.fixweights
 local udcign_reshape = global_args.reshape
 
 function nql:__init(args)
-    self.state_dim  = args.state_dim -- State dimensionality.
+    self.state_dim  = args.state_dim or 7056 -- State dimensionality.
     self.actions    = args.actions
     self.n_actions  = #self.actions
     self.verbose    = args.verbose
@@ -26,42 +26,41 @@ function nql:__init(args)
 
     --- epsilon annealing
     self.ep_start   = args.ep or 1
-    self.ep         = self.ep_start -- Exploration probability.
-    self.ep_end     = args.ep_end or self.ep
+    self.ep         = 1 -- self.ep_start -- Exploration probability.
+    self.ep_end     = 0.1 or self.ep
     self.ep_endt    = args.ep_endt or 1000000
 
     ---- learning rate annealing
-    self.lr_start       = args.lr or 0.01 --Learning rate.
+    self.lr_start       = args.lr or 0.00025 --Learning rate.
     self.lr             = self.lr_start
     self.lr_end         = args.lr_end or self.lr
     self.lr_endt        = args.lr_endt or 1000000
     self.wc             = args.wc or 0  -- L2 weight cost.
-    self.minibatch_size = args.minibatch_size or 1
+    self.minibatch_size = args.minibatch_size or 32
     self.valid_size     = args.valid_size or 500
 
     --- Q-learning parameters
     self.discount       = args.discount or 0.99 --Discount factor.
-    self.update_freq    = args.update_freq or 1
+    self.update_freq    = args.update_freq or 4
     -- Number of points to replay per learning step.
     self.n_replay       = args.n_replay or 1
     -- Number of steps after which learning starts.
-    self.learn_start    = args.learn_start or 0
+    self.learn_start    = args.learn_start or 50000
      -- Size of the transition table.
     self.replay_memory  = args.replay_memory or 1000000
-    self.hist_len       = args.hist_len or 1
-    self.rescale_r      = args.rescale_r
-    self.max_reward     = args.max_reward
-    self.min_reward     = args.min_reward
-    self.clip_delta     = args.clip_delta
-    self.target_q       = args.target_q
+    self.hist_len       = args.hist_len or 4
+    self.rescale_r      = args.rescale_r or 1
+    self.max_reward     = args.max_reward or 1
+    self.min_reward     = args.min_reward or -1
+    self.clip_delta     = args.clip_delta or 1
+    self.target_q       = args.target_q or 10000
     self.bestq          = 0
 
     self.gpu            = args.gpu
 
     self.ncols          = args.ncols or 1  -- number of color channels in input
     self.input_dims     = args.input_dims or {self.hist_len*self.ncols, 84, 84}  -- this incorporates hist_len!
-    -- self.input_dims     = args.input_dims or {self.hist_len,3, 210, 160}  -- this incorporates hist_len!  -- TODO
-    self.preproc        = args.preproc  -- name of preprocessing network
+    self.preproc        = args.preproc or "net_downsample_2x_full_y"-- name of preprocessing network
     self.histType       = args.histType or "linear"  -- history type to use
     self.histSpacing    = args.histSpacing or 1
     self.nonTermProb    = args.nonTermProb or 1
@@ -70,7 +69,7 @@ function nql:__init(args)
     self.transition_params = args.transition_params or {}
 
     self.network    = args.network or self:createNetwork() -- args.network is loaded by run_gpu as the convnet_atari3
-    -- self.fix_pre_encoder = false
+    print('agent network: '..self.network)
 
     -- check whether there is a network file
     local network_function
