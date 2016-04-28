@@ -13,7 +13,7 @@ if not os.path.exists("slurm_logs"):
 if not os.path.exists("slurm_scripts"):
     os.makedirs("slurm_scripts")
 
-networks_prefix = "../networks/"
+networks_prefix = "/om/user/wwhitney/unsupervised-dcign/networks/"
 
 # network (netfile), agent, seed, gpu, agent_params contains network
 # agent_params="network="$netfile" -global_fixweights
@@ -22,8 +22,8 @@ networks_prefix = "../networks/"
 # network --> netfile
 # name --> savefile
 
-seeds = range(1,3)
-envs = ['breakout','space_invaders']
+seeds = range(1)
+envs = ['space_invaders']
 agents = ['NeuralQLearner', 'NeuralQLearnerReshape']
 networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
 
@@ -57,6 +57,9 @@ for seed in seeds:
                         myjobs.append(job)
 
 
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
+pp.pprint(myjobs)
 if dry_run:
     print "NOT starting jobs:"
 else:
@@ -122,10 +125,13 @@ for job in myjobs:
         import_string = import_string)
 
 
+    jobname = jobname.replace('\"','')
+    print(jobcommand)
+
     script_path = 'run_gpu_' + jobname
     os.system('cp run_gpu_template ' + script_path)
 
-    with open(script_path.replace('\"',''), 'a') as script_file:
+    with open(script_path, 'a') as script_file:
         script_file.write('\n')
         script_file.write(jobcommand)
         script_file.write('\n')
@@ -138,6 +144,7 @@ for job in myjobs:
                 os.system('bash ' + script_path)
 
     else:
+        # slurm_script_path = 'slurm_scripts/' + jobname + '.slurm'
         with open('slurm_scripts/' + jobname + '.slurm', 'w') as slurmfile:
             slurmfile.write("#!/bin/bash\n")
             slurmfile.write("#SBATCH --job-name"+"=" + jobname + "\n")
@@ -146,4 +153,4 @@ for job in myjobs:
             slurmfile.write('bash ' + script_path)
 
         if not dry_run:
-            os.system("sbatch -N 1 -c 1 --gres=gpu:1 -p gpu --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")

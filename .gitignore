@@ -3,3 +3,7 @@ roms/
 *.md
 *.txt
 *.out
+slurm_logs/
+slurm_scripts/
+.DS_Store
+._.DS_Store

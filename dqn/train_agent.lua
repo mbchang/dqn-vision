@@ -54,6 +54,13 @@ cmd:text()
 local opt = cmd:parse(arg)
 print(opt)
 
+local f = io.open(opt.name .. '.log', 'w')
+for key, val in pairs(opt) do
+  f:write(tostring(key) .. ": " .. tostring(val) .. "\n")
+end
+f:flush()
+f:close()
+
 global_args = {fixweights = opt.global_fixweights,
                reshape = opt.global_reshape,
                pretrained_path = opt.pretrained_path}
