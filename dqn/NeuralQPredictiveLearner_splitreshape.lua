@@ -112,7 +112,9 @@ function nql:__init(args)
     self.p_learning_rate_decay_interval = 4000
     self.p_learning_rate_decay_after = 18000
     self.p_decay_rate = 0.95  -- rmsprop alpha
-    self.optim_state = {learningRate=self.p_learning_rate,
+    self.enc_optim_state = {learningRate=self.p_learning_rate,
+                        alpha=self.p_decay_rate}
+    self.dec_optim_state = {learningRate=self.p_learning_rate,
                         alpha=self.p_decay_rate}
     self.p_lambda = 0.5
 
@@ -131,8 +133,8 @@ function nql:__init(args)
 
     -- here, iniitialize predictive network
     self.pred_net = load_pred_net(self.p_args) -- this may be faster
-    -- self.pred_criterion = nn.MotionBCECriterion(self.p_motion_scale)
-    self.pred_criterion = nn.BCECriterion()
+    self.pred_criterion = nn.MotionBCECriterion(self.p_motion_scale)
+    -- self.pred_criterion = nn.BCECriterion()
     print('Prediction Network')
     print(self.pred_net)
     ----------------------------------------------------------------------------
@@ -393,6 +395,14 @@ function nql:qLearnMinibatch()
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
         term=term, update_qmax=true}
 
+    -- call feval first
+    -- function feval_controller()
+    --     return loss, controller_grad_params
+    -- end
+    -- function feval_function()
+    --     return loss, function_grad_params
+    -- end
+
     -- zero gradients of parameters
     self.enc_dw:zero()
     self.dec_dw:zero()
@@ -431,19 +441,46 @@ function nql:qLearnMinibatch()
         -- print(self.enc_w:sum()..'\tself.enc_w:sum()')
         -- print(sum1..'\tself.p_enc.modules[1].params:sum()')
         -- print(sum2..'\tself.p_enc.modules[2].params:sum()')
-        --
+
 
 
         -- zero grad params before rmsprop
-        -- self:feval()
-        local new_params, _ = self:rmsprop(_, s_pair,
-                        torch.cat{self.enc_w,self.p_dec_w}, self.optim_state)
+        local loss, _ = self:feval(_,s_pair)
+
+        function feval_encoder(x,input)
+            return loss, self.enc_dw
+        end
+        function feval_decoder(x,input)
+            return loss, self.p_dec_dw
+        end
+
+
+        -- Even though self.enc_w and self.p_dec_w get updated, they
+        -- get dereferenced from the module weights. If I remove the clone(),
+        -- then backward doesn't work.
+        -- passing in self.enc_w and self.p_dec_w is the problem
+        -- why does it affect self.p_dec_w?
+
+
+        -- rmsprop(feval_encoder, s_pair, self.enc_w, self.enc_optim_state)
+        -- rmsprop(feval_decoder, s_pair, self.p_dec_w, self.dec_optim_state)
+
+        
+        -- self.enc_w:fill(0.5)
+        -- self.p_dec_w:fill(0.5)
+
+
+        -- sharing doesn't work
+        -- self.p_enc.modules[1]:share(self.enc,
+        --             'weight', 'bias', 'gradWeight', 'gradBias')
+        -- self.p_enc.modules[2]:share(self.enc,
+        --             'weight', 'bias', 'gradWeight', 'gradBias')
 
 
         -- HEY! HERE'S THE ISSUE!
-        self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
-        self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
-        error("I'm a problem")
+        -- self.enc_w:copy(new_params[{{1,self.enc_w:size(1)}}])
+        -- self.p_dec_w:copy(new_params[{{self.enc_w:size(1)+1,-1}}])
+        -- error("I'm a problem")
 
         ---------------------------------------------------------
         -- debugging
@@ -475,16 +512,16 @@ function nql:qLearnMinibatch()
     end
 
     -- here we do updates on learning_rate if needed
-    -- if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
-    --                                     and self.p_learning_rate_decay < 1 then
-    --     if self.predictive_iteration >= self.p_learning_rate_decay_after then
-    --         self.optim_state.learningRate = self.optim_state.learningRate
-    --                                                 * self.p_learning_rate_decay
-    --         print('decayed function learning rate by a factor ' ..
-    --                         self.p_learning_rate_decay .. ' to '
-    --                         .. self.optim_state.learningRate)
-    --     end
-    -- end
+    if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
+                                        and self.p_learning_rate_decay < 1 then
+        if self.predictive_iteration >= self.p_learning_rate_decay_after then
+            self.optim_state.learningRate = self.optim_state.learningRate
+                                                    * self.p_learning_rate_decay
+            print('decayed function learning rate by a factor ' ..
+                            self.p_learning_rate_decay .. ' to '
+                            .. self.optim_state.learningRate)
+        end
+    end
 
     assert(false)
 end
@@ -492,7 +529,7 @@ end
 
 -- feval for full_udcign
 -- do fwd/bwd and return loss, grad_params
-function nql:feval()
+function nql:feval(x, input)
     -- assert(x:size(1) == self.enc_w:size(1) + self.p_dec_w:size(1))
     -- if x[{{1,self.enc_w:size(1)}}] ~= self.enc_w then
     --     print(x[{{1,self.enc_w:size(1)}}]:norm())
@@ -514,10 +551,31 @@ function nql:feval()
     self.dec_dw:zero()
     self.p_dec_dw:zero()
 
-    local input = {
-        torch.rand(32,1,84,84):cuda():mul(1000),
-        torch.rand(32,1,84,84):cuda():mul(1000)
-    }
+    -- local input = {
+    --     torch.rand(32,1,84,84):cuda():mul(1000),
+    --     torch.rand(32,1,84,84):cuda():mul(1000)
+    -- }
+
+    -- debugging
+    -- local sum1 = 0
+    -- local sum2 = 0
+    -- for k,_ in pairs(self.p_enc.modules[1].modules) do
+    --     if self.p_enc.modules[1].modules[k].weight then
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- for k,_ in pairs(self.p_enc.modules[2].modules) do
+    --     if self.p_enc.modules[2].modules[k].weight then
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- print('Before fwd/bwd: These should be equal and 0')
+    -- print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    -- print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    -- print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    -- ----------------------------------------------------------------------------
 
     print('before fwd/bwd')
     print(self.enc_dw:sum(), 'enc_dw:sum()')
@@ -537,26 +595,7 @@ function nql:feval()
     -- error("Done doing crap")
 
     -- ----------------------------------------------------------------------------
-    -- debugging
-    local sum1 = 0
-    local sum2 = 0
-    for k,_ in pairs(self.p_enc.modules[1].modules) do
-        if self.p_enc.modules[1].modules[k].weight then
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
-        end
-    end
-    for k,_ in pairs(self.p_enc.modules[2].modules) do
-        if self.p_enc.modules[2].modules[k].weight then
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
-        end
-    end
-    print('Before fwd/bwd: These should be equal and 0')
-    print(self.enc_dw:sum()..'\tenc_dw:sum()')
-    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
-    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
-    -- ----------------------------------------------------------------------------
+
     --
     -- local output = self.pred_net:forward(input)
     -- local loss = self.pred_criterion:forward(output, input[2])
@@ -569,48 +608,48 @@ function nql:feval()
     -- -- print(newgp:sum(), "new grad params after backward")
     --
     -- ----------------------------------------------------------------------------
-    local sum1 = 0
-    local sum2 = 0
-    for k,_ in pairs(self.p_enc.modules[1].modules) do
-        if self.p_enc.modules[1].modules[k].weight then
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
-        end
-    end
-    for k,_ in pairs(self.p_enc.modules[2].modules) do
-        if self.p_enc.modules[2].modules[k].weight then
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
-        end
-    end
-    print('After fwd/bwd: These should be equal and nonzero')
-    print(self.enc_dw:sum()..'\tenc_dw:sum()')
-    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
-    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    -- local sum1 = 0
+    -- local sum2 = 0
+    -- for k,_ in pairs(self.p_enc.modules[1].modules) do
+    --     if self.p_enc.modules[1].modules[k].weight then
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- for k,_ in pairs(self.p_enc.modules[2].modules) do
+    --     if self.p_enc.modules[2].modules[k].weight then
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- print('After fwd/bwd: These should be equal and nonzero')
+    -- print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    -- print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    -- print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
     ----------------------------------------------------------------------------
 
     self.enc_dw:mul(self.p_lambda)
 
     ----------------------------------------------------------------------------
-
-    local sum1 = 0
-    local sum2 = 0
-    for k,_ in pairs(self.p_enc.modules[1].modules) do
-        if self.p_enc.modules[1].modules[k].weight then
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
-        end
-    end
-    for k,_ in pairs(self.p_enc.modules[2].modules) do
-        if self.p_enc.modules[2].modules[k].weight then
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
-        end
-    end
-    print('After multiply by lambda: These should be equal and nonzero')
-    print(self.enc_dw:sum()..'\tenc_dw:sum()')
-    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
-    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    --
+    -- local sum1 = 0
+    -- local sum2 = 0
+    -- for k,_ in pairs(self.p_enc.modules[1].modules) do
+    --     if self.p_enc.modules[1].modules[k].weight then
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- for k,_ in pairs(self.p_enc.modules[2].modules) do
+    --     if self.p_enc.modules[2].modules[k].weight then
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- print('After multiply by lambda: These should be equal and nonzero')
+    -- print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    -- print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    -- print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
 
     ----------------------------------------------------------------------------
 
@@ -631,24 +670,24 @@ function nql:feval()
     self.p_dec_dw:clamp(-self.p_grad_clip, self.p_grad_clip)
 
     ----------------------------------------------------------------------------
-    local sum1 = 0
-    local sum2 = 0
-    for k,_ in pairs(self.p_enc.modules[1].modules) do
-        if self.p_enc.modules[1].modules[k].weight then
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
-            sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
-        end
-    end
-    for k,_ in pairs(self.p_enc.modules[2].modules) do
-        if self.p_enc.modules[2].modules[k].weight then
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
-            sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
-        end
-    end
-    print('After clamp: These should be equal and nonzero')
-    print(self.enc_dw:sum()..'\tenc_dw:sum()')
-    print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
-    print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
+    -- local sum1 = 0
+    -- local sum2 = 0
+    -- for k,_ in pairs(self.p_enc.modules[1].modules) do
+    --     if self.p_enc.modules[1].modules[k].weight then
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradWeight:sum()
+    --         sum1 = sum1 +self.p_enc.modules[1].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- for k,_ in pairs(self.p_enc.modules[2].modules) do
+    --     if self.p_enc.modules[2].modules[k].weight then
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradWeight:sum()
+    --         sum2 = sum2 +self.p_enc.modules[2].modules[k].gradBias:sum()
+    --     end
+    -- end
+    -- print('After clamp: These should be equal and nonzero')
+    -- print(self.enc_dw:sum()..'\tenc_dw:sum()')
+    -- print(sum1..'\tnet2.modules[1].modules[1].gradparams:sum()')
+    -- print(sum2..'\tnet2.modules[1].modules[2].gradparams:sum()')
     ----------------------------------------------------------------------------
 
 
@@ -737,16 +776,16 @@ function nql:createNetwork()
     return mlp
 end
 
---
--- function nql:_loadNet()
---     local net = self.network
---     if self.gpu then
---         net:cuda()
---     else
---         net:float()
---     end
---     return net
--- end
+
+function nql:_loadNet()
+    local net = self.network
+    if self.gpu then
+        net:cuda()
+    else
+        net:float()
+    end
+    return net
+end
 
 
 function nql:init(arg)
@@ -759,15 +798,15 @@ end
 
 
 function nql:report()
-    -- print('self.enc dw')
-    -- print(self.enc_dw:norm())
-    -- print('self.dec dw')
-    -- print(self.dec_dw:norm())
-    -- print('self.p_dec dw')
-    -- print(self.p_dec_dw:norm())
-    -- print('overall')
-    -- print(get_weight_norms(self.network))
-    -- print(get_grad_norms(self.network))
+    print('self.enc dw')
+    print(self.enc_dw:norm())
+    print('self.dec dw')
+    print(self.dec_dw:norm())
+    print('self.p_dec dw')
+    print(self.p_dec_dw:norm())
+    print('overall')
+    print(get_weight_norms(self.network))
+    print(get_grad_norms(self.network))
 end
 
 --------------------------------------------------------------------------------
@@ -794,7 +833,7 @@ RETURN:
 
 ]]
 
-function nql:rmsprop(opfunc, input, x, config, state)
+function rmsprop(opfunc, input, x, config, state)
     -- (0) get/update state
     local config = config or {}
     local state = state or config
@@ -804,7 +843,7 @@ function nql:rmsprop(opfunc, input, x, config, state)
     local wd = config.weightDecay or 0
 
     -- (1) evaluate f(x) and df/dx
-    local fx, dfdx = self:feval(x, input)  -- hardcoded
+    local fx, dfdx = opfunc(x, input)  -- opfunc returns true gradparams
 
     -- (2) weight decay
     if wd ~= 0 then
@@ -823,7 +862,7 @@ function nql:rmsprop(opfunc, input, x, config, state)
 
     -- (5) perform update
     state.tmp:sqrt(state.m):add(epsilon)
-    x:addcdiv(-lr, dfdx, state.tmp)
+    x:addcdiv(-lr, dfdx, state.tmp)  -- THIS IS THE PROBLEM!
 
     -- return x*, f(x) before optimization
     return x, {fx}
