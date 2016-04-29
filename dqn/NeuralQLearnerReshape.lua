@@ -231,6 +231,10 @@ function nql:getQUpdate(args)
         q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
     end
 
+    target_q_net:clearState()
+    collectgarbage()
+    collectgarbage()
+
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
 
@@ -244,6 +248,8 @@ function nql:getQUpdate(args)
     self.network:clearState()
     collectgarbage()
     collectgarbage()
+    cutorch.synchronize()
+
 
     -- q = Q(s,a)
     -- local q_all = self.network:forward(s):float()
@@ -252,6 +258,10 @@ function nql:getQUpdate(args)
         local bsize = s:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(s)
         encout = encout:reshape(bsize,800) -- hardcoded
+
+        -- self.network:clearState()
+        collectgarbage()
+        collectgarbage()
         q_all = self.network.modules[2]:forward(encout):float()
     else
         q_all = self.network:forward(s2):float()  -- getting an error here
@@ -379,6 +389,7 @@ end
 
 
 function nql:compute_validation_statistics(split)
+    collectgarbage()
     if not split then
         local targets, delta, q2_max = self:getQUpdate{s=self.valid_s,
             a=self.valid_a, r=self.valid_r, s2=self.valid_s2, term=self.valid_term}
@@ -396,6 +407,8 @@ function nql:compute_validation_statistics(split)
         -- q2_max_sum = (valid_size)
         --
         for i = 1,self.valid_size,sub_valid_size do
+            self.network:clearState()
+            collectgarbage()
             local _ , delta, q2_max = self:getQUpdate{
                         s=self.valid_s[{{i,i+sub_valid_size-1}}],
                         a=self.valid_a[{{i,i+sub_valid_size-1}}],
@@ -404,6 +417,7 @@ function nql:compute_validation_statistics(split)
                         term=self.valid_term[{{i,i+sub_valid_size-1}}]}
             q2_max_sum = q2_max_sum + q2_max:sum()
             delta_sum = delta_sum + delta:clone():abs():sum()
+            self.network:clearState()
             collectgarbage()
         end
 
@@ -414,6 +428,7 @@ end
 
 
 function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
+    collectgarbage()
     -- Preprocess state (will be set to nil if terminal)
     local state = self:preprocess(rawstate):float()  -- TODO: THIS IS PREPROCESS
 

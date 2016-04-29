@@ -56,7 +56,7 @@ print(opt)
 
 local f = io.open(opt.name .. '.log', 'w')
 for key, val in pairs(opt) do
-  f:write(tostring(key) .. ": " .. tostring(val) .. "\n")
+    f:write(tostring(key) .. ": " .. tostring(val) .. "\n")
 end
 f:flush()
 f:close()
@@ -132,6 +132,7 @@ while step < opt.steps do
     if step%1000 == 0 then collectgarbage() end
 
     if step % opt.eval_freq == 0 and step > learn_start then
+        print("\nRunning validation.")
 
         screen, reward, terminal = game_env:newGame()
 
@@ -142,12 +143,11 @@ while step < opt.steps do
 
         local eval_time = sys.clock()
         for estep=1,opt.eval_steps do
+            collectgarbage()
             local action_index = agent:perceive(reward, screen, terminal, true, 0.05)
 
             -- Play game in test mode (episodes don't end when losing a life)
             screen, reward, terminal = game_env:step(game_actions[action_index])
-
-            if estep%1000 == 0 then collectgarbage() end
 
             -- record every reward
             episode_reward = episode_reward + reward
