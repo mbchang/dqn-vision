@@ -134,8 +134,8 @@ function setup(_opt)
         require 'NeuralQLearner'
     elseif _opt.agent == 'NeuralQLearnerReshape' then
         require 'NeuralQLearnerReshape'
-    elseif _opt.agent == 'NeuralQPredictiveLearner_splitreshape' then
-        require 'NeuralQPredictiveLearner_splitreshape'
+    elseif _opt.agent == 'NeuralQPredictiveLearner' then
+        require 'NeuralQPredictiveLearner'
     else
         error('unknown agent')
     end

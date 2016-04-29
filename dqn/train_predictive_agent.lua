@@ -68,7 +68,7 @@ global_args = {fixweights = opt.global_fixweights,
                pretrained_path = opt.pretrained_path,
                lambda = opt.global_lambda}
 if opt.network and not(opt.network == '') then
-    opt.agent_params = opt.agent_params..',network='..opt.network  -- NOTE FIX THIS
+    opt.agent_params = opt.agent_params..',network='..opt.network
 end
 
 --- General setup.

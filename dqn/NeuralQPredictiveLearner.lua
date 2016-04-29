@@ -14,7 +14,7 @@ if not dqn then
     require 'initenv'
 end
 
-local nql = torch.class('dqn.NeuralQPredictiveLearner_splitreshape')
+local nql = torch.class('dqn.NeuralQPredictiveLearner')
 
 -- false for backpropagating all the way
 -- true for backpropagating only through the linear

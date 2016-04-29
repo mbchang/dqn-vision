@@ -6,6 +6,10 @@ dry_run = '--dry-run' in sys.argv
 local   = '--local' in sys.argv
 detach  = '--detach' in sys.argv
 
+dry_run = True
+local = True
+detach = True
+
 
 if not os.path.exists("slurm_logs"):
     os.makedirs("slurm_logs")
@@ -13,7 +17,8 @@ if not os.path.exists("slurm_logs"):
 if not os.path.exists("slurm_scripts"):
     os.makedirs("slurm_scripts")
 
-networks_prefix = "/om/user/wwhitney/unsupervised-dcign/networks/"
+# networks_prefix = "/om/user/wwhitney/unsupervised-dcign/networks/"
+networks_prefix = "/om/user/mbchang/dqn/networks/"
 
 # network (netfile), agent, seed, gpu, agent_params contains network
 # agent_params="network="$netfile" -global_fixweights
@@ -24,9 +29,9 @@ networks_prefix = "/om/user/wwhitney/unsupervised-dcign/networks/"
 
 seeds = range(1)
 envs = ['space_invaders']
-agents = ['NeuralQLearner', 'NeuralQLearnerReshape', 'NeuralQPredictiveLearner_splitreshape']  # NeuralQPredictiveLearner_splitreshape  "\"udcign_untrained_atari3\"" lambda global reshape
+agents = ['NeuralQPredictiveLearner']#, 'NeuralQLearner','NeuralQLearnerReshape']
 networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
-
+lambdas = [0.1,1]
 
 myjobs = []   # seed, env, learn, agent, network
 i = 0
@@ -38,6 +43,12 @@ for seed in seeds:
                 job = {'seed':seed,'env':env,'agent':agent}
                 job['network'] = '\"convnet_atari3\"'
                 myjobs.append(job)
+            elif agent == 'NeuralQPredictiveLearner':
+                for lam in lambdas:
+                    job = {'seed':seed,'env':env,'agent':agent}
+                    job['network'] = '\"udcign_untrained_atari3\"'
+                    job['global_lambda'] = lam
+                    myjobs.append(job)
             else:
                 for network in networks:
                     for learn in [True, False]:
@@ -69,7 +80,7 @@ for job in myjobs:
     assert 'env' in job
     assert 'agent' in job
     assert 'network' in job
-    if job['agent'] != 'NeuralQLearner' and job['env'] != 'breakout':
+    if job['agent'] == 'NeuralQLearnerReshape' and job['env'] != 'breakout':
         assert 'pretrained_path' in job
         assert 'learn' in job
 
@@ -91,7 +102,7 @@ for job in myjobs:
         else:
             flagstring = flagstring + " -" + flag + " " + str(job[flag])
             if flag == 'network':
-                if job[flag] == '\"udcign_trained_atari3\"':
+                if job[flag] == '\"udcign_trained_atari3\"' or job[flag] == '\"udcign_untrained_atari3\"':
                     jobname += '_disentangled'
                 elif job[flag] == '\"vanilla_trained_atari3\"':
                     jobname += '_vanilla'
@@ -105,8 +116,7 @@ for job in myjobs:
                 elif job[flag] == 'NeuralQLearnerReshape':
                     jobname += '_offline'
                     flagstring += ' -global_reshape'
-                elif job[flag] == 'NeuralQLearnerPredictive':
-                    assert False, "Did you implement this yet?"
+                elif job[flag] == 'NeuralQPredictiveLearner':
                     jobname += '_online'
                     flagstring += ' -global_reshape'
                 else:
@@ -120,7 +130,13 @@ for job in myjobs:
     # construct import file
     import_string = "-name " + networks_prefix + jobname
 
-    jobcommand = "th train_agent.lua $args {flag_string} {import_string}".format(
+    if job['agent'] == 'NeuralQPredictiveLearner':
+        trainer = 'train_predictive_agent.lua'
+    else:
+        trainer = 'train_agent.lua'
+
+    jobcommand = "th {trainer} $args {flag_string} {import_string}".format(
+        trainer = trainer,
         flag_string = flagstring,
         import_string = import_string)
 
@@ -153,4 +169,5 @@ for job in myjobs:
             slurmfile.write('bash ' + script_path)
 
         if not dry_run:
-            os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            # os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
