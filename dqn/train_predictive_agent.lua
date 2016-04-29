@@ -48,6 +48,8 @@ cmd:option('-gpu', -1, 'gpu flag')
 cmd:option('-global_fixweights', false, 'fix encoder weights')
 cmd:option('-global_reshape', false, 'if you want to encode each image separately')
 cmd:option('-pretrained_path', '', 'path of pretrained network')
+cmd:option('-global_lambda', 1, 'weight on grad params for dqn net')
+
 
 cmd:text()
 
@@ -63,12 +65,14 @@ f:close()
 
 global_args = {fixweights = opt.global_fixweights,
                reshape = opt.global_reshape,
-               pretrained_path = opt.pretrained_path}
-opt.agent_params = opt.agent_params..',network='..opt.network
+               pretrained_path = opt.pretrained_path,
+               lambda = opt.global_lambda}
+if opt.network and not(opt.network == '') then
+    opt.agent_params = opt.agent_params..',network='..opt.network  -- NOTE FIX THIS
+end
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
--- agent.fix_pre_encoder = opt.fix_pre_encoder
 
 -- override print to always flush the output
 local old_print = print

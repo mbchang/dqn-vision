@@ -119,7 +119,7 @@ function nql:__init(args)
                         alpha=self.p_decay_rate}
     self.dec_optim_state = {learningRate=self.p_learning_rate,
                         alpha=self.p_decay_rate}
-    self.p_lambda = 0.01
+    self.p_lambda = global_args.lambda
 
     self.predictive_iteration = 0
 
@@ -418,8 +418,6 @@ function nql:qLearnMinibatch()
         rmsprop(feval_decoder, s_pair, self.p_dec_w, self.dec_optim_state)
 
         -- print self.enc_dw here
-        -- print('autoencoder enc gp')
-        -- print(self.enc_dw:norm())
         dw_ratio[1] = dw_ratio[1]+self.enc_dw:norm()
     end
 
