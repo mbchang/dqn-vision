@@ -13,7 +13,7 @@ if not os.path.exists("slurm_logs"):
 if not os.path.exists("slurm_scripts"):
     os.makedirs("slurm_scripts")
 
-networks_prefix = "/om/user/wwhitney/unsupervised-dcign/networks/"
+networks_prefix = "../networks/"
 
 # network (netfile), agent, seed, gpu, agent_params contains network
 # agent_params="network="$netfile" -global_fixweights

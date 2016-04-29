@@ -64,7 +64,9 @@ f:close()
 global_args = {fixweights = opt.global_fixweights,
                reshape = opt.global_reshape,
                pretrained_path = opt.pretrained_path}
-opt.agent_params = opt.agent_params..',network='..opt.network
+if opt.network and not(opt.network == '') then
+    opt.agent_params = opt.agent_params..',network='..opt.network
+end
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
