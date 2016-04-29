@@ -24,7 +24,7 @@ networks_prefix = "/om/user/wwhitney/unsupervised-dcign/networks/"
 
 seeds = range(1)
 envs = ['space_invaders']
-agents = ['NeuralQLearner', 'NeuralQLearnerReshape']
+agents = ['NeuralQLearner', 'NeuralQLearnerReshape', 'NeuralQPredictiveLearner_splitreshape']  # NeuralQPredictiveLearner_splitreshape  "\"udcign_untrained_atari3\"" lambda global reshape
 networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
 
 
