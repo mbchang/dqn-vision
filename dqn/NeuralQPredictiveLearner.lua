@@ -321,7 +321,7 @@ function nql:getQUpdate(args)
     if udcign_reshape then
         local bsize = s2:nElement()/84/84/4
         local encout = target_q_net.modules[1]:forward(s2)
-        encout = encout:reshape(bsize,800) -- hardcoded
+        encout = encout:resize(bsize,800) -- hardcoded
         q2_max = target_q_net.modules[2]:forward(encout):float():max(2)
     else
         q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
@@ -347,7 +347,7 @@ function nql:getQUpdate(args)
     if udcign_reshape then
         local bsize = s:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(s)
-        encout = encout:reshape(bsize,800) -- hardcoded
+        encout = encout:resize(bsize,800) -- hardcoded
         q_all = self.network.modules[2]:forward(encout):float()
     else
         q_all = self.network:forward(s2):float()  -- getting an error here
@@ -377,6 +377,7 @@ end
 
 
 function nql:qLearnMinibatch()
+    -- print('learn minibatch')
     -- Perform a minibatch Q-learning update:
     -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
     assert(self.transitions:size() > self.minibatch_size)
@@ -386,52 +387,52 @@ function nql:qLearnMinibatch()
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
         term=term, update_qmax=true}
 
-    -- zero gradients of parameters
-    self.enc_dw:zero()
-    self.dec_dw:zero()
-    self.p_dec_dw:zero()
-
-    -- mutate the scheduler_iteration
-    self.predictive_iteration = self.predictive_iteration+1
-    self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
-
-    -- first split into batches
-    local s_reshaped = s:reshape(self.minibatch_size, self.hist_len, 84, 84)
-    local s_pairs = {}
-    table.insert(s_pairs, {s_reshaped[{{},{1}}],s_reshaped[{{},{2}}]})
-    table.insert(s_pairs, {s_reshaped[{{},{2}}],s_reshaped[{{},{3}}]})
-    table.insert(s_pairs, {s_reshaped[{{},{3}}],s_reshaped[{{},{4}}]})
-
-    for k,s_pair in pairs(s_pairs) do
-
-        -- zero grad params before rmsprop
-        local loss, _ = self:feval(s_pair)
-
-        function feval_encoder(x,input)
-            return loss, self.enc_dw
-        end
-        function feval_decoder(x,input)
-            return loss, self.p_dec_dw
-        end
-
-        rmsprop(feval_encoder, s_pair, self.enc_w, self.enc_optim_state)
-        rmsprop(feval_decoder, s_pair, self.p_dec_w, self.dec_optim_state)
-
-        -- print self.enc_dw here
-        dw_ratio[1] = dw_ratio[1]+self.enc_dw:norm()
-    end
-
-    -- here we do updates on learning_rate if needed
-    if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
-                                        and self.p_learning_rate_decay < 1 then
-        if self.predictive_iteration >= self.p_learning_rate_decay_after then
-            self.optim_state.learningRate = self.optim_state.learningRate
-                                                    * self.p_learning_rate_decay
-            print('decayed function learning rate by a factor ' ..
-                            self.p_learning_rate_decay .. ' to '
-                            .. self.optim_state.learningRate)
-        end
-    end
+    -- -- -- zero gradients of parameters
+    -- self.enc_dw:zero()
+    -- self.dec_dw:zero()
+    -- self.p_dec_dw:zero()
+    --
+    -- -- mutate the scheduler_iteration
+    -- self.predictive_iteration = self.predictive_iteration+1
+    -- self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
+    --
+    -- -- first split into batches
+    -- local s_reshaped = s:reshape(self.minibatch_size, self.hist_len, 84, 84)
+    -- local s_pairs = {}
+    -- table.insert(s_pairs, {s_reshaped[{{},{1}}],s_reshaped[{{},{2}}]})
+    -- table.insert(s_pairs, {s_reshaped[{{},{2}}],s_reshaped[{{},{3}}]})
+    -- table.insert(s_pairs, {s_reshaped[{{},{3}}],s_reshaped[{{},{4}}]})
+    --
+    -- for k,s_pair in pairs(s_pairs) do
+    --
+    --     -- zero grad params before rmsprop
+    --     local loss, _ = self:feval(s_pair)
+    --
+    --     function feval_encoder(x,input)
+    --         return loss, self.enc_dw
+    --     end
+    --     function feval_decoder(x,input)
+    --         return loss, self.p_dec_dw
+    --     end
+    --
+    --     rmsprop(feval_encoder, s_pair, self.enc_w, self.enc_optim_state)
+    --     rmsprop(feval_decoder, s_pair, self.p_dec_w, self.dec_optim_state)
+    --
+    --     -- print self.enc_dw here
+    --     dw_ratio[1] = dw_ratio[1]+self.enc_dw:norm()
+    -- end
+    --
+    -- -- here we do updates on learning_rate if needed
+    -- if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
+    --                                     and self.p_learning_rate_decay < 1 then
+    --     if self.predictive_iteration >= self.p_learning_rate_decay_after then
+    --         self.optim_state.learningRate = self.optim_state.learningRate
+    --                                                 * self.p_learning_rate_decay
+    --         print('decayed function learning rate by a factor ' ..
+    --                         self.p_learning_rate_decay .. ' to '
+    --                         .. self.optim_state.learningRate)
+    --     end
+    -- end
 
     ----------------------------------------------------------------------------
     -- get new gradient
@@ -448,7 +449,7 @@ function nql:qLearnMinibatch()
         if udcign_reshape then
             local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
+            encout = encout:resize(bsize,800) -- hardcoded  resize or reshape?
             self.network.modules[2]:backward(encout,targets)
         else
             self.network.modules[2]:backward(self.network.modules[1].output,
@@ -458,9 +459,9 @@ function nql:qLearnMinibatch()
         if udcign_reshape then
             local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
+            encout = encout:resize(bsize,800) -- hardcoded  resize or reshape?
             local grad_encout = self.network.modules[2]:backward(encout,targets)
-            grad_encout = grad_encout:reshape(bsize*4,200)
+            grad_encout = grad_encout:resize(bsize*4,200)
             self.network.modules[1]:backward(s,grad_encout)
         else
             self.network:backward(s, targets)
@@ -514,6 +515,92 @@ function nql:qLearnMinibatch()
     collectgarbage()
 end
 
+function nql:qLearnEnvironment()
+    -- print('learn env')
+    -- assert(false,'Did you divide ratio by pred_learn_freq and initialize pred_learn_freq? and call qLearnEnvironment every pred_learn_freq times? pred_learn_freq shoudl be in train_predictive_agent')
+    -- Perform a minibatch Q-learning update:
+    -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
+    -- self.pred_net:clearState()
+    -- if self.gpu and self.gpu >= 0 then
+    --     cutorch.synchronize()
+    -- end
+    -- collectgarbage()
+    -- self.pred_net:clearState()
+    -- if self.gpu and self.gpu >= 0 then
+    --     cutorch.synchronize()
+    -- end
+    -- collectgarbage()
+
+    local pred_batch_size = self.minibatch_size*global_args.learn_freq
+    assert(self.transitions:size() > pred_batch_size)
+    local s, a, r, s2, term = self.transitions:sample(pred_batch_size)
+    a = nil
+    r = nil
+    s2 = nil
+    collectgarbage()
+    -- self.pred_net:clearState()
+    -- if self.gpu and self.gpu >= 0 then
+    --     cutorch.synchronize()
+    -- end
+    -- collectgarbage()
+
+    -- zero gradients of parameters
+    self.enc_dw:zero()
+    self.dec_dw:zero()
+    self.p_dec_dw:zero()
+
+    -- mutate the scheduler_iteration
+    self.predictive_iteration = self.predictive_iteration+1
+    self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
+
+    -- first split into batches
+    local s_reshaped = s:resize(pred_batch_size, self.hist_len, 84, 84)
+    local s_pairs = {}
+    -- table.insert(s_pairs, {s_reshaped[{{},{1}}],s_reshaped[{{},{2}}]})
+    -- table.insert(s_pairs, {s_reshaped[{{},{2}}],s_reshaped[{{},{3}}]})
+    table.insert(s_pairs, {s_reshaped[{{},{3}}],s_reshaped[{{},{4}}]})
+
+    -- s_pair = s:resize(s:nElement()/84/84,1,84,84)
+
+
+    for k,s_pair in pairs(s_pairs) do
+
+        -- zero grad params before rmsprop
+        local loss, _ = self:feval(s_pair)
+
+        function feval_encoder(x,input)
+            return loss, self.enc_dw
+        end
+        function feval_decoder(x,input)
+            return loss, self.p_dec_dw
+        end
+
+        rmsprop(feval_encoder, s_pair, self.enc_w, self.enc_optim_state)
+        rmsprop(feval_decoder, s_pair, self.p_dec_w, self.dec_optim_state)
+
+        -- print self.enc_dw here
+        dw_ratio[1] = dw_ratio[1]+self.enc_dw:norm()
+    end
+
+    -- here we do updates on learning_rate if needed
+    if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
+                                        and self.p_learning_rate_decay < 1 then
+        if self.predictive_iteration >= self.p_learning_rate_decay_after then
+            self.enc_optim_state.learningRate = self.enc_optim_state.learningRate
+                                                    * self.p_learning_rate_decay
+            self.dec_optim_state.learningRate = self.dec_optim_state.learningRate
+                                                    * self.p_learning_rate_decay
+            print('decayed function learning rate by a factor ' ..
+                            self.p_learning_rate_decay .. ' to '
+                            .. self.enc_optim_state.learningRate)
+        end
+    end
+
+    if self.gpu and self.gpu >= 0 then
+        cutorch.synchronize()
+    end
+    collectgarbage()
+end
 
 -- feval for full_udcign
 -- do fwd/bwd and return loss, grad_params
@@ -651,8 +738,13 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     if self.numSteps > self.learn_start and not testing and
         self.numSteps % self.update_freq == 0 then
         for i = 1, self.n_replay do
-            self:qLearnMinibatch() -- do this once each time we perceive
+            self:qLearnMinibatch() -- do this once each 4 perceives
         end
+    end
+
+    if self.numSteps > self.learn_start and not testing and
+        self.numSteps % (self.update_freq*global_args.learn_freq) == 0 then
+        self:qLearnEnvironment() -- do this once each time we perceive
     end
 
     if not testing then
@@ -711,7 +803,7 @@ function nql:greedy(state)
         state = state:resize(state:nElement()/84/84,1,84,84) -- hardcoded
         local bsize = state:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(state)
-        encout = encout:reshape(bsize,800) -- hardcoded
+        encout = encout:resize(bsize,800) -- hardcoded
         q = self.network.modules[2]:forward(encout):float():squeeze()
     else
         q = self.network:forward(state):float():squeeze()
@@ -775,7 +867,7 @@ end
 
 function nql:report()
     if self.predictive_iteration > 0 then
-        print('pred/dqn:', dw_ratio[1]/dw_ratio[2]/3)
+        print('pred/dqn:', dw_ratio[1]*global_args.learn_freq/dw_ratio[2]/3)
     end
     print(get_weight_norms(self.network))
     print(get_grad_norms(self.network))

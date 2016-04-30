@@ -225,7 +225,7 @@ function nql:getQUpdate(args)
     if udcign_reshape then
         local bsize = s2:nElement()/84/84/4
         local encout = target_q_net.modules[1]:forward(s2)
-        encout = encout:reshape(bsize,800) -- hardcoded
+        encout = encout:resize(bsize,800) -- hardcoded
         q2_max = target_q_net.modules[2]:forward(encout):float():max(2)
     else
         q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
@@ -251,7 +251,7 @@ function nql:getQUpdate(args)
     if udcign_reshape then
         local bsize = s:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(s)
-        encout = encout:reshape(bsize,800) -- hardcoded
+        encout = encout:resize(bsize,800) -- hardcoded
         q_all = self.network.modules[2]:forward(encout):float()
     else
         q_all = self.network:forward(s2):float()  -- getting an error here
@@ -295,7 +295,6 @@ function nql:qLearnMinibatch()
 
     if udcign_reshape then
         s = s:resize(s:nElement()/84/84,1,84,84)
-        -- TODO: do I need to resize targets?
     end
 
     -- get new gradient
@@ -310,7 +309,7 @@ function nql:qLearnMinibatch()
         if udcign_reshape then
             local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
+            encout = encout:resize(bsize,800) -- hardcoded  resize or reshape?
             self.network.modules[2]:backward(encout,targets)
         else
             self.network.modules[2]:backward(self.network.modules[1].output,
@@ -322,9 +321,9 @@ function nql:qLearnMinibatch()
         if udcign_reshape then
             local bsize = s:nElement()/84/84/4
             local encout = self.network.modules[1].output  -- necessary to clone()?
-            encout = encout:reshape(bsize,800) -- hardcoded  resize or reshape?
+            encout = encout:resize(bsize,800) -- hardcoded  resize or reshape?
             local grad_encout = self.network.modules[2]:backward(encout,targets)
-            grad_encout = grad_encout:reshape(bsize*4,200)
+            grad_encout = grad_encout:resize(bsize*4,200)
             self.network.modules[1]:backward(s,grad_encout)
         else
             self.network:backward(s, targets)
@@ -519,7 +518,7 @@ function nql:greedy(state)
         state = state:resize(state:nElement()/84/84,1,84,84) -- hardcoded
         local bsize = state:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(state)
-        encout = encout:reshape(bsize,800) -- hardcoded
+        encout = encout:resize(bsize,800) -- hardcoded
         q = self.network.modules[2]:forward(encout):float():squeeze()
     else
         q = self.network:forward(state):float():squeeze()
