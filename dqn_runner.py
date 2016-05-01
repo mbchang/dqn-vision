@@ -29,43 +29,45 @@ networks_prefix = "/om/user/mbchang/dqn/networks/"
 
 seeds = range(1)
 envs = ['space_invaders']
-agents = ['NeuralQPredictiveLearner']#, 'NeuralQLearner','NeuralQLearnerReshape']
-networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
-lambdas = [0.1,1]
+agents = ['NeuralQPredictiveLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
+networks = ['\"udcign_trained_atari3\"',]#'\"vanilla_trained_atari3\"',]
+lambdas = [0.01,0.001]
+lrs = [1e-4,3e-4,1e-3]
 
 myjobs = []   # seed, env, learn, agent, network
 i = 0
 for seed in seeds:
     for env in envs:
         for agent in agents:
+            for lr in lrs:
 
-            if agent == 'NeuralQLearner':
-                job = {'seed':seed,'env':env,'agent':agent}
-                job['network'] = '\"convnet_atari3\"'
-                myjobs.append(job)
-            elif agent == 'NeuralQPredictiveLearner':
-                for lam in lambdas:
-                    job = {'seed':seed,'env':env,'agent':agent}
-                    job['network'] = '\"udcign_untrained_atari3\"'
-                    job['global_lambda'] = lam
+                if agent == 'NeuralQLearner':
+                    job = {'seed':seed,'env':env,'agent':agent, 'lr': lr}
+                    job['network'] = '\"convnet_atari3\"'
                     myjobs.append(job)
-            else:
-                for network in networks:
-                    for learn in [True, False]:
-                        job = {'seed':seed,'env':env,'agent':agent,'network':network,'learn':learn}
-
-                        if env == 'breakout':
-                            if network == '\"vanilla_trained_atari3\"':
-                                pass
-                            elif network == '\"udcign_trained_atari3\"':
-                                pass
-                        elif env == 'space_invaders':
-                            if network == '\"vanilla_trained_atari3\"':
-                                job['pretrained_path'] = '/om/user/wwhitney/unsupervised-dcign/networks/down_motion_scale_3_noise_0.1_heads_3_sharpening_rate_10_gpu_learning_rate_0.0001_model_autoencoder_dataset_name_space_invaders_frame_interval_1/epoch50.00_0.1298.t7'
-                            elif network == '\"udcign_trained_atari3\"':
-                                job['pretrained_path'] = '/om/user/wwhitney/unsupervised-dcign/networks/down_motion_scale_3_noise_0.1_heads_3_sharpening_rate_10_gpu_learning_rate_0.0002_model_disentangled_dataset_name_space_invaders_frame_interval_1/epoch50.00_0.1369.t7'
-
+                elif agent == 'NeuralQPredictiveLearner':
+                    for lam in lambdas:
+                        job = {'seed':seed,'env':env,'agent':agent, 'lr': lr}
+                        job['network'] = '\"udcign_untrained_atari3\"'
+                        job['global_lambda'] = lam
                         myjobs.append(job)
+                else:
+                    for network in networks:
+                        for learn in [True, False]:
+                            job = {'seed':seed,'env':env,'agent':agent, 'lr': lr,'network':network,'learn':learn}
+
+                            if env == 'breakout':
+                                if network == '\"vanilla_trained_atari3\"':
+                                    pass
+                                elif network == '\"udcign_trained_atari3\"':
+                                    pass
+                            elif env == 'space_invaders':
+                                if network == '\"vanilla_trained_atari3\"':
+                                    job['pretrained_path'] = '/om/user/wwhitney/unsupervised-dcign/networks/down_motion_scale_3_noise_0.1_heads_3_sharpening_rate_10_gpu_learning_rate_0.0001_model_autoencoder_dataset_name_space_invaders_frame_interval_1/epoch50.00_0.1298.t7'
+                                elif network == '\"udcign_trained_atari3\"':
+                                    job['pretrained_path'] = '/om/user/wwhitney/unsupervised-dcign/networks/down_motion_scale_3_noise_0.1_heads_3_sharpening_rate_10_gpu_learning_rate_0.0002_model_disentangled_dataset_name_space_invaders_frame_interval_1/epoch50.00_0.1369.t7'
+
+                            myjobs.append(job)
 
 
 import pprint
@@ -141,7 +143,7 @@ for job in myjobs:
         import_string = import_string)
 
 
-    jobname = jobname.replace('\"','')
+    jobname = jobname.replace('\"','')+ '_lambdatest'
     print(jobcommand)
 
     script_path = 'run_gpu_' + jobname
@@ -170,4 +172,4 @@ for job in myjobs:
 
         if not dry_run:
             # os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
-            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=200000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")

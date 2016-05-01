@@ -49,6 +49,9 @@ cmd:option('-global_fixweights', false, 'fix encoder weights')
 cmd:option('-global_reshape', false, 'if you want to encode each image separately')
 cmd:option('-pretrained_path', '', 'path of pretrained network')
 cmd:option('-global_lambda', 1, 'weight on grad params for dqn net')
+cmd:option('-learn_freq', 5, 'how many perceives before we do a pred net pass')
+cmd:option('-lr', '', 'learning rate') -- just using global lr for now
+
 
 
 cmd:text()
@@ -66,9 +69,14 @@ f:close()
 global_args = {fixweights = opt.global_fixweights,
                reshape = opt.global_reshape,
                pretrained_path = opt.pretrained_path,
-               lambda = opt.global_lambda}
+               lambda = opt.global_lambda,
+               learn_freq = opt.learn_freq,
+               pred_lr = opt.plr}
 if opt.network and not(opt.network == '') then
     opt.agent_params = opt.agent_params..',network='..opt.network
+end
+if opt.lr and not(opt.lr == '') then
+    opt.agent_params = opt.agent_params..',lr='..opt.lr
 end
 
 --- General setup.
@@ -101,10 +109,11 @@ local episode_reward
 -- screen is (1 x 3 x 210 x 160)
 local screen, reward, terminal = game_env:getState()
 
-local split = false
-if not(opt.name:match('udcign') == nil) then
-    split = true
-end
+-- don't do this if not necessary
+local split = true
+-- if opt.agent_params.network:match('convnet') then  -- naive dqn
+--     split = false
+-- end
 
 
 print("Iteration ..", step)

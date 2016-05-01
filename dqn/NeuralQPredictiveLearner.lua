@@ -110,7 +110,7 @@ function nql:__init(args)
     self.p_motion_scale = 3
     self.p_grad_clip = 3
     self.p_L2 = 0
-    self.p_learning_rate = 0.0001  -- TODO CHANGE ME
+    self.p_learning_rate = self.lr
     self.p_learning_rate_decay = 0.97
     self.p_learning_rate_decay_interval = 4000
     self.p_learning_rate_decay_after = 18000
@@ -538,12 +538,21 @@ function nql:qLearnEnvironment()
     r = nil
     s2 = nil
     collectgarbage()
-    -- self.pred_net:clearState()
-    -- if self.gpu and self.gpu >= 0 then
-    --     cutorch.synchronize()
-    -- end
-    -- collectgarbage()
-
+    collectgarbage()
+    --collectgarbage('setstepmul',2000)
+    --print('before pred',optnet.countUsedMemory(self.pred_net))
+    --print('before net',optnet.countUsedMemory(self.network))
+    --print(collectgarbage('count'))
+    self.pred_net:clearState()
+    self.network:clearState()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    --print('after pred',optnet.countUsedMemory(self.pred_net))
+    --print('after net',optnet.countUsedMemory(self.network))
+    --print(collectgarbage('count'))
     -- zero gradients of parameters
     self.enc_dw:zero()
     self.dec_dw:zero()
@@ -596,6 +605,26 @@ function nql:qLearnEnvironment()
         end
     end
 
+
+    collectgarbage()
+    collectgarbage()
+    --collectgarbage('setstepmul',2000)
+    --print('before pred',optnet.countUsedMemory(self.pred_net))
+    --print('before net',optnet.countUsedMemory(self.network))
+    --print(collectgarbage('count'))
+    self.pred_net:clearState()
+    self.network:clearState()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    --print('after pred',optnet.countUsedMemory(self.pred_net))
+    --print('after net',optnet.countUsedMemory(self.network))
+    --print(collectgarbage('count'))
+
+
+
     if self.gpu and self.gpu >= 0 then
         cutorch.synchronize()
     end
@@ -607,6 +636,17 @@ end
 function nql:feval(input)
 
     ------------------- forward pass -------------------
+    self.pred_net:clearState()
+    self.network:clearState()
+    collectgarbage()
+    collectgarbage()
+    collectgarbage()
+    if self.gpu and self.gpu >= 0 then
+        cutorch.synchronize()
+    end
+    collectgarbage()
+    collectgarbage()
+
     self.pred_net:training() -- make sure we are in correct mode
 
     self.enc_dw:zero()
@@ -743,7 +783,7 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
     end
 
     if self.numSteps > self.learn_start and not testing and
-        self.numSteps % (self.update_freq*global_args.learn_freq) == 0 then
+        self.numSteps % (self.update_freq*global_args.learn_freq*3) == 0 then
         self:qLearnEnvironment() -- do this once each time we perceive
     end
 
