@@ -49,7 +49,7 @@ cmd:option('-global_fixweights', false, 'fix encoder weights')
 cmd:option('-global_reshape', false, 'if you want to encode each image separately')
 cmd:option('-pretrained_path', '', 'path of pretrained network')
 cmd:option('-global_lambda', 1, 'weight on grad params for dqn net')
-cmd:option('-learn_freq', 5, 'how many perceives before we do a pred net pass')
+cmd:option('-learn_freq', 4, 'how many perceives before we do a pred net pass')
 cmd:option('-lr', '', 'learning rate') -- just using global lr for now
 
 

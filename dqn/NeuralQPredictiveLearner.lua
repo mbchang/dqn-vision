@@ -625,6 +625,10 @@ function nql:qLearnEnvironment()
 
 
 
+
+
+
+
     if self.gpu and self.gpu >= 0 then
         cutorch.synchronize()
     end
