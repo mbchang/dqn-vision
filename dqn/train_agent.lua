@@ -99,9 +99,9 @@ local episode_reward
 -- screen is (1 x 3 x 210 x 160)
 local screen, reward, terminal = game_env:getState()
 
-local split = false
-if not(opt.name:match('udcign') == nil) then
-    split = true
+local split = true
+if opt.agent_params.network:match('convnet') then  -- naive dqn
+    split = false
 end
 
 
