@@ -22,9 +22,14 @@ networks_prefix = "../networks/"
 # network --> netfile
 # name --> savefile
 
+# seeds = range(1)
+# envs = ['space_invaders']
+# agents = ['NeuralQLearner', 'NeuralQLearnerReshape']
+# networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
+
 seeds = range(1)
 envs = ['space_invaders']
-agents = ['NeuralQLearner', 'NeuralQLearnerReshape']
+agents = ['NeuralQLearnerReshape']
 networks = ['\"vanilla_trained_atari3\"','\"udcign_trained_atari3\"']
 
 
@@ -103,7 +108,7 @@ for job in myjobs:
                 if job[flag] == 'NeuralQLearner':
                     jobname += '_naive'
                 elif job[flag] == 'NeuralQLearnerReshape':
-                    jobname += '_offline'
+                    jobname += '_offline_nonlinQ'
                     flagstring += ' -global_reshape'
                 elif job[flag] == 'NeuralQLearnerPredictive':
                     assert False, "Did you implement this yet?"
@@ -136,6 +141,7 @@ for job in myjobs:
         script_file.write(jobcommand)
         script_file.write('\n')
 
+    print("Run script: " + script_path)
     if local:
         if not dry_run:
             if detach:
