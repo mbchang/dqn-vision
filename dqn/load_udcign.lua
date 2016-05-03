@@ -16,7 +16,7 @@ function load_encoder(encoder, args)
     decoder:add(nn.Linear(n_hidden, n_hidden))
     decoder:add(nn.ReLU())
     decoder:add(nn.Linear(n_hidden, args.n_actions))
-    net:add(encoder)
+    net:add(decoder)
 
 
     if args.gpu >=0 then

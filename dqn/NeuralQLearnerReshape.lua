@@ -220,6 +220,9 @@ function nql:getQUpdate(args)
     collectgarbage()
     collectgarbage()
 
+    -- print('target_q_net')
+    -- print(target_q_net)
+
     -- Compute max_a Q(s_2, a).
     -- q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
     if udcign_reshape then
