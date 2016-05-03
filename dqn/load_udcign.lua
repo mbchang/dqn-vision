@@ -4,18 +4,19 @@ require "initenv"
 local optnet = require 'optnet'
 
 function load_encoder(encoder, args)
+    local net = nn.Sequential()
     local n_hidden = 128
     local encoder_dim = args.hist_len*args.p_dim_hidden
 
-    local net = nn.Sequential()
-
-    -- encoder
     net:add(encoder)
-    net:add(nn.Linear(encoder_dim, n_hidden))
-    net:add(nn.ReLU())
-    net:add(nn.Linear(n_hidden, n_hidden))
-    net:add(nn.ReLU())
-    net:add(nn.Linear(n_hidden, args.n_actions))
+
+    local decoder = nn.Sequential()
+    decoder:add(nn.Linear(encoder_dim, n_hidden))
+    decoder:add(nn.ReLU())
+    decoder:add(nn.Linear(n_hidden, n_hidden))
+    decoder:add(nn.ReLU())
+    decoder:add(nn.Linear(n_hidden, args.n_actions))
+    net:add(encoder)
 
 
     if args.gpu >=0 then
