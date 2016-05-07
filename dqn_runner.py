@@ -28,11 +28,11 @@ networks_prefix = "/om/user/mbchang/dqn/networks/"
 # name --> savefile
 
 seeds = range(1)
-envs = ['space_invaders']
-agents = ['NeuralQPredictiveLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
+envs = ['breakout']
+agents = ['NeuralQPredictiveLearner_vanilla', 'NeuralQPredictiveLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
 networks = ['\"udcign_trained_atari3\"',]#'\"vanilla_trained_atari3\"',]
-lambdas = [0.01,0.001]
-lrs = [1e-4,3e-4,1e-3]
+lambdas = [1,0.1,0.01]
+lrs = [0.00025]
 
 myjobs = []   # seed, env, learn, agent, network
 i = 0
@@ -45,7 +45,7 @@ for seed in seeds:
                     job = {'seed':seed,'env':env,'agent':agent, 'lr': lr}
                     job['network'] = '\"convnet_atari3\"'
                     myjobs.append(job)
-                elif agent == 'NeuralQPredictiveLearner':
+                elif agent == 'NeuralQPredictiveLearner' or agent == 'NeuralQPredictiveLearner_vanilla':
                     for lam in lambdas:
                         job = {'seed':seed,'env':env,'agent':agent, 'lr': lr}
                         job['network'] = '\"udcign_untrained_atari3\"'
@@ -104,9 +104,9 @@ for job in myjobs:
         else:
             flagstring = flagstring + " -" + flag + " " + str(job[flag])
             if flag == 'network':
-                if job[flag] == '\"udcign_trained_atari3\"' or job[flag] == '\"udcign_untrained_atari3\"':
+                if job[flag] == '\"udcign_trained_atari3\"' or (job[flag] == '\"udcign_untrained_atari3\"' and job['agent'] == 'NeuralQPredictiveLearner'):
                     jobname += '_disentangled'
-                elif job[flag] == '\"vanilla_trained_atari3\"':
+                elif job[flag] == '\"vanilla_trained_atari3\"' or (job[flag] == '\"udcign_untrained_atari3\"' and job['agent'] == 'NeuralQPredictiveLearner_vanilla'):
                     jobname += '_vanilla'
                 elif job[flag] == '\"convnet_atari3\"':
                     jobname += '_dqn'
@@ -116,10 +116,10 @@ for job in myjobs:
                 if job[flag] == 'NeuralQLearner':
                     jobname += '_naive'
                 elif job[flag] == 'NeuralQLearnerReshape':
-                    jobname += '_offline'
+                    jobname += '_offline_nonlinQ'
                     flagstring += ' -global_reshape'
-                elif job[flag] == 'NeuralQPredictiveLearner':
-                    jobname += '_online'
+                elif job[flag] == 'NeuralQPredictiveLearner' or job[flag] == 'NeuralQPredictiveLearner_vanilla':
+                    jobname += '_online_nonlinQ'  #-- nonlinearity
                     flagstring += ' -global_reshape'
                 else:
                     assert False,'unknown agent'
@@ -132,7 +132,7 @@ for job in myjobs:
     # construct import file
     import_string = "-name " + networks_prefix + jobname
 
-    if job['agent'] == 'NeuralQPredictiveLearner':
+    if job['agent'] == 'NeuralQPredictiveLearner' or job['agent'] == 'NeuralQPredictiveLearner_vanilla':
         trainer = 'train_predictive_agent.lua'
     else:
         trainer = 'train_agent.lua'
@@ -143,7 +143,7 @@ for job in myjobs:
         import_string = import_string)
 
 
-    jobname = jobname.replace('\"','')+ '_lambdatest'
+    jobname = jobname.replace('\"','')+ '_lambdatestnonlin512'
     print(jobcommand)
 
     script_path = 'run_gpu_' + jobname
@@ -172,4 +172,4 @@ for job in myjobs:
 
         if not dry_run:
             # os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
-            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=200000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=30000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")

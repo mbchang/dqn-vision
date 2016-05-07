@@ -125,7 +125,8 @@ function nql:__init(args)
 
     self.p_args = {}
     self.p_args.p_sharpening_rate = 10
-    self.p_args.p_scheduler_iteration = torch.zeros(1)
+    -- self.p_args.p_scheduler_iteration = torch.zeros(1)
+    p_scheduler_iteration = 0
     self.p_args.p_dim_hidden = 200
     self.p_args.p_color_channels = self.ncols
     self.p_args.p_feature_maps = 72
@@ -327,6 +328,10 @@ function nql:getQUpdate(args)
         q2_max = target_q_net:forward(s2):float():max(2)  -- getting an error here
     end
 
+    target_q_net:clearState()
+    collectgarbage()
+    collectgarbage()
+
     -- Compute q2 = (1-terminal) * gamma * max_a Q(s2, a)
     q2 = q2_max:clone():mul(self.discount):cmul(term)
 
@@ -340,6 +345,9 @@ function nql:getQUpdate(args)
     self.network:clearState()
     collectgarbage()
     collectgarbage()
+    if self.gpu and self.gpu >= 0 then
+        cutorch.synchronize()
+    end
 
     -- q = Q(s,a)
     -- local q_all = self.network:forward(s):float()
@@ -348,6 +356,8 @@ function nql:getQUpdate(args)
         local bsize = s:nElement()/84/84/4
         local encout = self.network.modules[1]:forward(s)
         encout = encout:resize(bsize,800) -- hardcoded
+        collectgarbage()
+        collectgarbage()
         q_all = self.network.modules[2]:forward(encout):float()
     else
         q_all = self.network:forward(s2):float()  -- getting an error here
@@ -387,63 +397,13 @@ function nql:qLearnMinibatch()
     local targets, delta, q2_max = self:getQUpdate{s=s, a=a, r=r, s2=s2,
         term=term, update_qmax=true}
 
-    -- -- -- zero gradients of parameters
-    -- self.enc_dw:zero()
-    -- self.dec_dw:zero()
-    -- self.p_dec_dw:zero()
-    --
-    -- -- mutate the scheduler_iteration
-    -- self.predictive_iteration = self.predictive_iteration+1
-    -- self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
-    --
-    -- -- first split into batches
-    -- local s_reshaped = s:reshape(self.minibatch_size, self.hist_len, 84, 84)
-    -- local s_pairs = {}
-    -- table.insert(s_pairs, {s_reshaped[{{},{1}}],s_reshaped[{{},{2}}]})
-    -- table.insert(s_pairs, {s_reshaped[{{},{2}}],s_reshaped[{{},{3}}]})
-    -- table.insert(s_pairs, {s_reshaped[{{},{3}}],s_reshaped[{{},{4}}]})
-    --
-    -- for k,s_pair in pairs(s_pairs) do
-    --
-    --     -- zero grad params before rmsprop
-    --     local loss, _ = self:feval(s_pair)
-    --
-    --     function feval_encoder(x,input)
-    --         return loss, self.enc_dw
-    --     end
-    --     function feval_decoder(x,input)
-    --         return loss, self.p_dec_dw
-    --     end
-    --
-    --     rmsprop(feval_encoder, s_pair, self.enc_w, self.enc_optim_state)
-    --     rmsprop(feval_decoder, s_pair, self.p_dec_w, self.dec_optim_state)
-    --
-    --     -- print self.enc_dw here
-    --     dw_ratio[1] = dw_ratio[1]+self.enc_dw:norm()
-    -- end
-    --
-    -- -- here we do updates on learning_rate if needed
-    -- if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
-    --                                     and self.p_learning_rate_decay < 1 then
-    --     if self.predictive_iteration >= self.p_learning_rate_decay_after then
-    --         self.optim_state.learningRate = self.optim_state.learningRate
-    --                                                 * self.p_learning_rate_decay
-    --         print('decayed function learning rate by a factor ' ..
-    --                         self.p_learning_rate_decay .. ' to '
-    --                         .. self.optim_state.learningRate)
-    --     end
-    -- end
-
-    ----------------------------------------------------------------------------
-    -- get new gradient
+    -- zero gradients of parameters before updating dqn
+    self.enc_dw:zero()
+    self.dec_dw:zero()
 
     if udcign_reshape then
         s = s:resize(s:nElement()/84/84,1,84,84)
     end
-
-    -- zero gradients of parameters before updating dqn
-    self.enc_dw:zero()
-    self.dec_dw:zero()
 
     if fix_pre_encoder then
         if udcign_reshape then
@@ -560,7 +520,8 @@ function nql:qLearnEnvironment()
 
     -- mutate the scheduler_iteration
     self.predictive_iteration = self.predictive_iteration+1
-    self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
+    p_scheduler_iteration = p_scheduler_iteration + 1
+    -- self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
 
     -- first split into batches
     local s_reshaped = s:resize(pred_batch_size, self.hist_len, 84, 84)

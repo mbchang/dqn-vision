@@ -8,7 +8,7 @@ FRAMEWORK="alewrap"
 
 game_path=$PWD"/roms/"
 env_params="useRGB=true"
-agent="NeuralQPredictiveLearner"
+agent="NeuralQPredictiveLearner_vanilla"
 n_replay=1
 netfile="\"udcign_untrained_atari3\""
 update_freq=4
