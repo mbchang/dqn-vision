@@ -6,9 +6,9 @@ dry_run = '--dry-run' in sys.argv
 local   = '--local' in sys.argv
 detach  = '--detach' in sys.argv
 
-dry_run = True
-local = True
-detach = True
+#dry_run = True
+#local = True
+#detach = True
 
 
 if not os.path.exists("slurm_logs"):
@@ -29,9 +29,9 @@ networks_prefix = "/om/user/mbchang/dqn/networks/"
 
 seeds = range(1)
 envs = ['breakout']
-agents = ['NeuralQPredictiveLearner_vanilla', 'NeuralQPredictiveLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
+agents = ['NeuralQLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
 networks = ['\"udcign_trained_atari3\"',]#'\"vanilla_trained_atari3\"',]
-lambdas = [1,0.1,0.01]
+lambdas = [0.5]#,0.3,0.1,0.03,0.01]
 lrs = [0.00025]
 
 myjobs = []   # seed, env, learn, agent, network
@@ -143,7 +143,7 @@ for job in myjobs:
         import_string = import_string)
 
 
-    jobname = jobname.replace('\"','')+ '_lambdatestnonlin512'
+    jobname = jobname.replace('\"','')+ '_lambdatestfull'
     print(jobcommand)
 
     script_path = 'run_gpu_' + jobname
@@ -171,5 +171,5 @@ for job in myjobs:
             slurmfile.write('bash ' + script_path)
 
         if not dry_run:
-            # os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=16000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
-            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=30000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=30000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            # os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=30000 --time=1-23:00:00 slurm_scripts/" + jobname + ".slurm &")

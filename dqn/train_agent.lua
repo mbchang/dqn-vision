@@ -48,6 +48,8 @@ cmd:option('-gpu', -1, 'gpu flag')
 cmd:option('-global_fixweights', false, 'fix encoder weights')
 cmd:option('-global_reshape', false, 'if you want to encode each image separately')
 cmd:option('-pretrained_path', '', 'path of pretrained network')
+cmd:option('-lr', '', 'learning rate') -- just using global lr for now
+
 
 cmd:text()
 
@@ -64,7 +66,12 @@ f:close()
 global_args = {fixweights = opt.global_fixweights,
                reshape = opt.global_reshape,
                pretrained_path = opt.pretrained_path}
-opt.agent_params = opt.agent_params..',network='..opt.network
+if opt.network and not(opt.network == '') then
+   opt.agent_params = opt.agent_params..',network='..opt.network
+end
+if opt.lr and not(opt.lr == '') then
+   opt.agent_params = opt.agent_params..',lr='..opt.lr
+end
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)

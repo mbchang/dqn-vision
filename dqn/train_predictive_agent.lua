@@ -53,7 +53,6 @@ cmd:option('-learn_freq', 4, 'how many perceives before we do a pred net pass')
 cmd:option('-lr', '', 'learning rate') -- just using global lr for now
 
 
-
 cmd:text()
 
 local opt = cmd:parse(arg)

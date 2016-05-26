@@ -23,7 +23,8 @@ local udcign_reshape = global_args.reshape
 
 
 -- for adjusting lambda
-local dw_ratio = {0,0}
+local dw_ratio = {0,0}  -- (pred, dqn)
+local learn_env_freq = 3
 
 function nql:__init(args)
     self.state_dim  = args.state_dim or 7056 -- State dimensionality.
@@ -127,6 +128,7 @@ function nql:__init(args)
     self.p_args.p_sharpening_rate = 10
     -- self.p_args.p_scheduler_iteration = torch.zeros(1)
     p_scheduler_iteration = 0
+    p_schedule_weight_exp = 1
     self.p_args.p_dim_hidden = 200
     self.p_args.p_color_channels = self.ncols
     self.p_args.p_feature_maps = 72
@@ -428,7 +430,7 @@ function nql:qLearnMinibatch()
         end
     end
 
-    self.enc_dw:mul(self.p_lambda)
+    self.enc_dw:mul(1-self.p_lambda)
 
     dw_ratio[2] = dw_ratio[2]+self.enc_dw:norm()
 
@@ -474,22 +476,8 @@ function nql:qLearnMinibatch()
     end
     collectgarbage()
 end
-
+--
 function nql:qLearnEnvironment()
-    -- print('learn env')
-    -- assert(false,'Did you divide ratio by pred_learn_freq and initialize pred_learn_freq? and call qLearnEnvironment every pred_learn_freq times? pred_learn_freq shoudl be in train_predictive_agent')
-    -- Perform a minibatch Q-learning update:
-    -- w += alpha * (r + gamma max Q(s2,a2) - Q(s,a)) * dQ(s,a)/dw
-    -- self.pred_net:clearState()
-    -- if self.gpu and self.gpu >= 0 then
-    --     cutorch.synchronize()
-    -- end
-    -- collectgarbage()
-    -- self.pred_net:clearState()
-    -- if self.gpu and self.gpu >= 0 then
-    --     cutorch.synchronize()
-    -- end
-    -- collectgarbage()
 
     local pred_batch_size = self.minibatch_size*global_args.learn_freq
     assert(self.transitions:size() > pred_batch_size)
@@ -499,20 +487,14 @@ function nql:qLearnEnvironment()
     s2 = nil
     collectgarbage()
     collectgarbage()
-    --collectgarbage('setstepmul',2000)
-    --print('before pred',optnet.countUsedMemory(self.pred_net))
-    --print('before net',optnet.countUsedMemory(self.network))
-    --print(collectgarbage('count'))
+
     self.pred_net:clearState()
-    self.network:clearState()
     collectgarbage()
     collectgarbage()
     collectgarbage()
     collectgarbage()
     collectgarbage()
-    --print('after pred',optnet.countUsedMemory(self.pred_net))
-    --print('after net',optnet.countUsedMemory(self.network))
-    --print(collectgarbage('count'))
+
     -- zero gradients of parameters
     self.enc_dw:zero()
     self.dec_dw:zero()
@@ -521,7 +503,7 @@ function nql:qLearnEnvironment()
     -- mutate the scheduler_iteration
     self.predictive_iteration = self.predictive_iteration+1
     p_scheduler_iteration = p_scheduler_iteration + 1
-    -- self.p_args.p_scheduler_iteration[1] = self.p_args.p_scheduler_iteration[1]+1
+    print('sharpening exp:',p_schedule_weight_exp)
 
     -- first split into batches
     local s_reshaped = s:resize(pred_batch_size, self.hist_len, 84, 84)
@@ -538,6 +520,16 @@ function nql:qLearnEnvironment()
         -- zero grad params before rmsprop
         local loss, _ = self:feval(s_pair)
 
+        -- if self.predictive_iteration % 1000 == 0 then
+        --     print('before lambda')
+        --     print('self.enc_dw',self.enc_dw:norm())
+        --     print('self.p_dec_dw',self.p_dec_dw:norm())
+        --     print('self.enc_w',self.enc_w:norm())
+        --     print('self.p_dec_w',self.p_dec_w:norm())
+        -- end
+
+        self.enc_dw:mul(self.p_lambda)  --
+
         function feval_encoder(x,input)
             return loss, self.enc_dw
         end
@@ -550,6 +542,14 @@ function nql:qLearnEnvironment()
 
         -- print self.enc_dw here
         dw_ratio[1] = dw_ratio[1]+self.enc_dw:norm()
+
+        -- if self.predictive_iteration % 1000 == 0 then
+        --     print('before lambda')
+        --     print('self.enc_dw',self.enc_dw:norm())
+        --     print('self.p_dec_dw',self.p_dec_dw:norm())
+        --     print('self.enc_w',self.enc_w:norm())
+        --     print('self.p_dec_w',self.p_dec_w:norm())
+        -- end
     end
 
     -- here we do updates on learning_rate if needed
@@ -566,43 +566,28 @@ function nql:qLearnEnvironment()
         end
     end
 
-
     collectgarbage()
     collectgarbage()
-    --collectgarbage('setstepmul',2000)
-    --print('before pred',optnet.countUsedMemory(self.pred_net))
-    --print('before net',optnet.countUsedMemory(self.network))
-    --print(collectgarbage('count'))
     self.pred_net:clearState()
-    self.network:clearState()
     collectgarbage()
     collectgarbage()
     collectgarbage()
     collectgarbage()
     collectgarbage()
-    --print('after pred',optnet.countUsedMemory(self.pred_net))
-    --print('after net',optnet.countUsedMemory(self.network))
-    --print(collectgarbage('count'))
-
-
-
-
-
-
 
     if self.gpu and self.gpu >= 0 then
         cutorch.synchronize()
     end
     collectgarbage()
 end
-
--- feval for full_udcign
--- do fwd/bwd and return loss, grad_params
+--
+--
+-- -- -- feval for full_udcign
+-- -- -- do fwd/bwd and return loss, grad_params
 function nql:feval(input)
 
     ------------------- forward pass -------------------
     self.pred_net:clearState()
-    self.network:clearState()
     collectgarbage()
     collectgarbage()
     collectgarbage()
@@ -630,8 +615,6 @@ function nql:feval(input)
         loss = loss + self.p_L2 *
                             torch.cat{self.enc_w, self.p_dec_w}:norm(2)^2/2
         -- Gradients:
-        -- grad_params:add( params:clone():mul(opt.L2) )
-
         self.enc_dw:add( self.enc_w:clone():mul(opt.L2) )
         self.p_dec_dw:add( self.p_dec_w:clone():mul(opt.L2) )
     end
@@ -642,8 +625,8 @@ function nql:feval(input)
     collectgarbage()
     return loss, torch.cat{self.enc_dw,self.p_dec_dw}  -- not actually used
 end
-
-
+--
+--
 function nql:sample_validation_data()
     local s, a, r, s2, term = self.transitions:sample(self.valid_size)
 
@@ -723,6 +706,8 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
                              self.lastTerminal, priority)
     end
 
+    -- put it here see what happens
+
     if self.numSteps == self.learn_start+1 and not testing then
          -- we do stuff on validation data instead here
         self:sample_validation_data()
@@ -747,10 +732,10 @@ function nql:perceive(reward, rawstate, terminal, testing, testing_ep)
         end
     end
 
-    if self.numSteps > self.learn_start and not testing and
-        self.numSteps % (self.update_freq*global_args.learn_freq*3) == 0 then
-        self:qLearnEnvironment() -- do this once each time we perceive
-    end
+   if self.numSteps > self.learn_start and not testing and
+       self.numSteps % (self.update_freq*global_args.learn_freq*learn_env_freq) == 0 then
+       self:qLearnEnvironment() -- do this once each time we perceive
+   end
 
     if not testing then
         self.numSteps = self.numSteps + 1
@@ -872,7 +857,7 @@ end
 
 function nql:report()
     if self.predictive_iteration > 0 then
-        print('pred/dqn:', dw_ratio[1]*global_args.learn_freq/dw_ratio[2]/3)
+        print('pred/dqn:', dw_ratio[1]*global_args.learn_freq/dw_ratio[2]/learn_env_freq)
     end
     print(get_weight_norms(self.network))
     print(get_grad_norms(self.network))
