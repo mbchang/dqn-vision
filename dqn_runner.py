@@ -28,11 +28,12 @@ networks_prefix = "/om/user/mbchang/dqn/networks/"
 # name --> savefile
 
 seeds = range(1)
-envs = ['breakout']
-agents = ['NeuralQLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
+envs = ['breakout', 'space_invaders']
+agents = ['NeuralQPredictiveLearner']#,'NeuralQLearnerReshape']#, 'NeuralQLearner','NeuralQLearnerReshape']
 networks = ['\"udcign_trained_atari3\"',]#'\"vanilla_trained_atari3\"',]
-lambdas = [0.5]#,0.3,0.1,0.03,0.01]
+lambdas = [0.3,0.5,0.7]#,0.3,0.1,0.03,0.01]
 lrs = [0.00025]
+p_lrdecays = [1,0.97]
 
 myjobs = []   # seed, env, learn, agent, network
 i = 0
@@ -47,10 +48,11 @@ for seed in seeds:
                     myjobs.append(job)
                 elif agent == 'NeuralQPredictiveLearner' or agent == 'NeuralQPredictiveLearner_vanilla':
                     for lam in lambdas:
-                        job = {'seed':seed,'env':env,'agent':agent, 'lr': lr}
-                        job['network'] = '\"udcign_untrained_atari3\"'
-                        job['global_lambda'] = lam
-                        myjobs.append(job)
+                        for p_lrdecay in p_lrdecays:
+                            job = {'seed':seed,'env':env,'agent':agent, 'lr': lr, 'p_lrdecay': p_lrdecay}
+                            job['network'] = '\"udcign_untrained_atari3\"'
+                            job['global_lambda'] = lam
+                            myjobs.append(job)
                 else:
                     for network in networks:
                         for learn in [True, False]:
@@ -143,10 +145,12 @@ for job in myjobs:
         import_string = import_string)
 
 
-    jobname = jobname.replace('\"','')+ '_lambdatestfull'
+    jobname = jobname.replace('\"','')+ '_lambdatestlogall'
     print(jobcommand)
 
     script_path = 'run_gpu_' + jobname
+    # print('copying', script_path)
+
     os.system('cp run_gpu_template ' + script_path)
 
     with open(script_path, 'a') as script_file:
@@ -171,5 +175,5 @@ for job in myjobs:
             slurmfile.write('bash ' + script_path)
 
         if not dry_run:
-            os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=30000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
-            # os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=30000 --time=1-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            # os.system("sbatch -N 1 -c 1 --gres=gpu:titan-x:1 --mem=30000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")
+            os.system("sbatch -N 1 -c 1 --gres=gpu:tesla-k20:1 --mem=30000 --time=6-23:00:00 slurm_scripts/" + jobname + ".slurm &")

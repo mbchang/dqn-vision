@@ -51,6 +51,8 @@ cmd:option('-pretrained_path', '', 'path of pretrained network')
 cmd:option('-global_lambda', 1, 'weight on grad params for dqn net')
 cmd:option('-learn_freq', 4, 'how many perceives before we do a pred net pass')
 cmd:option('-lr', '', 'learning rate') -- just using global lr for now
+cmd:option('-p_lrdecay', '', 'learning rate decay') -- just using global lr for now
+
 
 
 cmd:text()
@@ -69,14 +71,18 @@ global_args = {fixweights = opt.global_fixweights,
                reshape = opt.global_reshape,
                pretrained_path = opt.pretrained_path,
                lambda = opt.global_lambda,
-               learn_freq = opt.learn_freq,
-               pred_lr = opt.plr}
+               learn_freq = opt.learn_freq}
 if opt.network and not(opt.network == '') then
     opt.agent_params = opt.agent_params..',network='..opt.network
 end
 if opt.lr and not(opt.lr == '') then
     opt.agent_params = opt.agent_params..',lr='..opt.lr
 end
+if opt.p_lrdecay and not(opt.p_lrdecay == '') then
+    opt.agent_params = opt.agent_params..',p_lrdecay='..opt.p_lrdecay
+end
+
+p_scheduler_iteration = 0  -- make this global
 
 --- General setup.
 local game_env, game_actions, agent, opt = setup(opt)
@@ -246,8 +252,12 @@ while step < opt.steps do
             agent.best_network:clearState()
         end
         collectgarbage()
+        -- TODO: you should also save the exponent! -- possibly you have to move that into train_predictive_agent
+            -- p_scheduler_iteration
+            -- learning rate
         torch.save(filename .. ".t7", {agent = agent,
                                 model = agent.network,
+                                pred_model = agent.pred_net,
                                 best_model = agent.best_network,
                                 reward_history = reward_history,
                                 reward_counts = reward_counts,
@@ -256,6 +266,9 @@ while step < opt.steps do
                                 v_history = v_history,
                                 td_history = td_history,
                                 qmax_history = qmax_history,
+                                step = step,
+                                lr = agent.lr,
+                                p_scheduler_iteration = p_scheduler_iteration,
                                 arguments=opt})
         if opt.saveNetworkParams then
             local nets = {network=w:clone():float()}

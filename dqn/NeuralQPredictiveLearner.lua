@@ -112,7 +112,7 @@ function nql:__init(args)
     self.p_grad_clip = 3
     self.p_L2 = 0
     self.p_learning_rate = self.lr
-    self.p_learning_rate_decay = 0.97
+    self.p_learning_rate_decay = args.p_lrdecay or 1
     self.p_learning_rate_decay_interval = 4000
     self.p_learning_rate_decay_after = 18000
     self.p_decay_rate = 0.95  -- rmsprop alpha
@@ -122,13 +122,11 @@ function nql:__init(args)
                         alpha=self.p_decay_rate}
     self.p_lambda = global_args.lambda
 
-    self.predictive_iteration = 0
-
     self.p_args = {}
     self.p_args.p_sharpening_rate = 10
     -- self.p_args.p_scheduler_iteration = torch.zeros(1)
-    p_scheduler_iteration = 0
-    p_schedule_weight_exp = 1
+    -- p_scheduler_iteration = 0
+    -- p_schedule_weight_exp = 1  This shouldn't be necessary
     self.p_args.p_dim_hidden = 200
     self.p_args.p_color_channels = self.ncols
     self.p_args.p_feature_maps = 72
@@ -501,7 +499,7 @@ function nql:qLearnEnvironment()
     self.p_dec_dw:zero()
 
     -- mutate the scheduler_iteration
-    self.predictive_iteration = self.predictive_iteration+1
+    -- self.predictive_iteration = self.predictive_iteration+1
     p_scheduler_iteration = p_scheduler_iteration + 1
     print('sharpening exp:',p_schedule_weight_exp)
 
@@ -553,9 +551,9 @@ function nql:qLearnEnvironment()
     end
 
     -- here we do updates on learning_rate if needed
-    if self.predictive_iteration % self.p_learning_rate_decay_interval == 0
+    if p_scheduler_iteration % self.p_learning_rate_decay_interval == 0
                                         and self.p_learning_rate_decay < 1 then
-        if self.predictive_iteration >= self.p_learning_rate_decay_after then
+        if p_scheduler_iteration >= self.p_learning_rate_decay_after then
             self.enc_optim_state.learningRate = self.enc_optim_state.learningRate
                                                     * self.p_learning_rate_decay
             self.dec_optim_state.learningRate = self.dec_optim_state.learningRate
@@ -856,7 +854,7 @@ end
 
 
 function nql:report()
-    if self.predictive_iteration > 0 then
+    if p_scheduler_iteration > 0 then
         print('pred/dqn:', dw_ratio[1]*global_args.learn_freq/dw_ratio[2]/learn_env_freq)
     end
     print(get_weight_norms(self.network))
